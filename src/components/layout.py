@@ -1,16 +1,11 @@
 from dash import Dash, html, dcc
-from src.components import (
-    bar_chart,
-    category_dropdown,
-    month_dropdown,
-    pie_chart,
-    year_dropdown,
-)
 
-from ..data.source import DataSource
+from . import bar_chart, nation_dropdown
 
 
-def create_layout(app: Dash, source: DataSource) -> html.Div:
+
+
+def create_layout(app: Dash) -> html.Div:
     return html.Div(
         html.Div(
             id='vp-control-tabs', className='control-tabs', children=[
@@ -66,11 +61,10 @@ def create_layout(app: Dash, source: DataSource) -> html.Div:
                         html.Div(
                             className="dropdown-container",
                             children=[
-                                year_dropdown.render(app, source),
-                                month_dropdown.render(app, source),
-                                category_dropdown.render(app, source)]),
-                        bar_chart.render(app, source),
-                        pie_chart.render(app, source),
+                                nation_dropdown.render(app)
+                            ]
+                        ),
+                        bar_chart.render(app),
                                 ]
                             )
                         )
@@ -79,3 +73,19 @@ def create_layout(app: Dash, source: DataSource) -> html.Div:
             ],
         ),
     )
+
+# def create_layout(app: Dash) -> html.Div:
+#     return html.Div(
+#         className="app-div",
+#         children=[
+#             html.H1(app.title),
+#             html.Hr(),
+#             html.Div(
+#                 className="dropdown-container",
+#                 children=[
+#                     nation_dropdown.render(app),
+#                 ],
+#             ),
+#             bar_chart.render(app),
+#         ],
+#     )
