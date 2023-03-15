@@ -2,60 +2,80 @@ from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 from . import ids
+import plotly.express as px
 
 
 def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
     # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
 
-    @app.callback(Output(ids.GENE_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value"))
-    def set_comparison_options(selected_comparison):
-        a =  [{"label": gene, "value": gene} for gene in dfs[selected_comparison].columns]
+    # from dataset dropdown get 3 things
+    # 1: get df
+    @app.callback(Output(ids.BOX_CHART, "value"), Input(ids.DATASET_DROPDOWN, "value"))
+    def get_df(selected_comparison):
+        return selected_comparison
+
+    # 2: get genes
+    @app.callback(
+        Output(ids.GENE_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value")
+    )
+    def set_gene_options(selected_comparison):
+        a = [
+            {"label": gene, "value": gene} for gene in dfs[selected_comparison].columns
+        ]
         print(a[:3], len(a))
         return a
-    
-    @app.callback(Output(ids.COMPARISON_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value"))
+
+    # 3: get comparisons
+    @app.callback(
+        Output(ids.COMPARISON_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value")
+    )
     def set_comparison_options(selected_comparison):
         seen = set([])
-        b= []
+        b = []
         for comp in dfs[selected_comparison].comparison:
             if comp not in seen:
                 b.append({"label": comp, "value": comp})
             seen.add(comp)
-        print( b)
+        print(b)
         return b
-    
-    @app.callback(Output(ids.GENE_DROPDOWN, "value"), Input(ids.GENE_DROPDOWN, "options"))
-    def set_gene_value(available_options):
+
+    # select gene
+    @app.callback(
+        Output(ids.GENE_DROPDOWN, "value"), Input(ids.GENE_DROPDOWN, "options")
+    )
+    def select_gene_value(available_options):
         return available_options[0]["value"]
 
-    @app.callback(Output(ids.COMPARISON_DROPDOWN, "value"), Input(ids.COMPARISON_DROPDOWN, "options"))
-    def set_cities_value(available_options):
-        return available_options
-    # @app.callback(
-    #             Output('vp-dataset-div', 'title'),
-    #     [
-    #         Input(ids.DATASET_DROPDOWN, 'value')
-    #     ]
-    # )
-    # def select_df(dataset_name: str) -> pd.DataFrame:
-    #     return dfs[dataset_name]
-
-    # @app.callback(
-    #             Output('vp-dataset-div', 'title'),
-    #     [
-    #         Input(ids.DATASET_DROPDOWN, 'value')
-    #     ]
-    # )
-    # def select_gene() -> pd.DataFrame:
-    #     return dfs[dataset_name]
-
+    # select comparison/s
     @app.callback(
         Output(ids.COMPARISON_DROPDOWN, "value"),
-        Input(ids.COMPARISON_DROPDOWN, "value"),
-        Input(ids.SELECT_ALL_COMPARISONS_BUTTON, "n_clicks")
+        Input(ids.COMPARISON_DROPDOWN, "options"),
     )
-    def select_all_comparisons() -> list[str]:
-        return list(set(df.comparison))
+    def select_comparison_values(available_options):
+        return available_options
+
+    @app.callback(
+        Output(ids.BOX_CHART, "children"),
+        Input(ids.DATASET_DROPDOWN, "value"),
+        Input(ids.GENE_DROPDOWN, "value"),
+        Input(ids.COMPARISON_DROPDOWN, "value"),
+    )
+    def update_box_chart(dataset_choice: str, gene: str, comps: list[str]) -> html.Div:
+        print(111, dfs[dataset_choice].head(), gene, comps, sep="\n")
+        df_filtered = dfs[dataset_choice].query('comparison in @comps')
+        fig = px.box(df_filtered, x="comparison", y=gene)
+
+        # fig = px.box(df, x="medal", y="count", color="nation", text="nation")
+
+        return html.Div(dcc.Graph(figure=fig), id=ids.BOX_CHART)
+
+    # @app.callback(
+    #     Output(ids.COMPARISON_DROPDOWN, "value"),
+    #     Input(ids.COMPARISON_DROPDOWN, "value"),
+    #     Input(ids.SELECT_ALL_COMPARISONS_BUTTON, "n_clicks")
+    # )
+    # def select_all_comparisons() -> list[str]:
+    #     return list(set(df.comparison))
 
     return html.Div(
         children=[
@@ -81,5 +101,6 @@ def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
                 id=ids.SELECT_ALL_COMPARISONS_BUTTON,
                 n_clicks=0,
             ),
-        ]
+            html.Div(id=ids.BOX_CHART),
+        ],
     )

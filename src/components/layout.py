@@ -28,7 +28,6 @@ def create_layout(app: Dash, dfs) -> html.Div:
                                             className="dropdown-container",
                                             children=[rna_raw_tab.render(app, dfs)],
                                             ),
-                                        box_chart.render(app)
                                         ],
                                     )
                                 ],
