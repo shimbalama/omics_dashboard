@@ -3,7 +3,7 @@ from dash import Dash, html, dcc
 from . import rna_raw_tab, box_chart #bar_chart, nation_dropdown, 
 
 
-def create_layout(app: Dash, dfs) -> html.Div:
+def create_layout(app: Dash, dfs1, dfs2) -> html.Div:
     return html.Div(
         html.Div(
             id="vp-control-tabs",
@@ -26,7 +26,7 @@ def create_layout(app: Dash, dfs) -> html.Div:
                                             html.Hr(),
                                             html.Div(
                                             className="dropdown-container",
-                                            children=[rna_raw_tab.render(app, dfs)],
+                                            children=[rna_raw_tab.render(app, dfs1)],
                                             ),
                                         ],
                                     )

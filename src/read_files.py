@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-
 def load_raw_rna_files(data_path: Path) -> dict[str, pd.DataFrame]:
     """Reads raw RNA csv files"""
     data_dict: dict[str, pd.DataFrame] = {}
@@ -23,6 +22,22 @@ def load_raw_rna_files(data_path: Path) -> dict[str, pd.DataFrame]:
     for csv in ["CSexp2_BETi", "CSexp2_shRNA"]:
         data_dict[csv] = read_individual(data_path / f"{csv}_CPM_after_filtering.csv")
     return data_dict
+
+
+def load_processed_rna_files(data_path: Path) -> dict[str, pd.DataFrame]:
+    '''reads processed tsv files'''
+    data_dict: dict[str, pd.DataFrame] = {}
+
+    def read_individual(csv: Path) -> pd.DataFrame:
+        df = pd.read_csv(csv, sep="\t", index_col="gene_id")
+        return df
+
+    for csv in data_path.glob("*.txt"):
+        name = str(csv.name).strip().split("_")[0]
+        data_dict[name] = read_individual(csv)
+
+    return data_dict
+
 
 # @dataclass
 # class DataSource:

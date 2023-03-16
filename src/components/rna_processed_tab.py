@@ -65,13 +65,6 @@ def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
         fig = px.box(df_filtered, x="comparison", y=gene)
         return html.Div(dcc.Graph(figure=fig), id=ids.BOX_CHART)
 
-    # @app.callback(
-    #     Output(ids.COMPARISON_DROPDOWN, "value"),
-    #     Input(ids.COMPARISON_DROPDOWN, "value"),
-    #     Input(ids.SELECT_ALL_COMPARISONS_BUTTON, "n_clicks")
-    # )
-    # def select_all_comparisons() -> list[str]:
-    #     return list(set(df.comparison))
 
     return html.Div(
         children=[
