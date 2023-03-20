@@ -9,6 +9,7 @@ def load_raw_rna_files(data_path: Path) -> dict[str, pd.DataFrame]:
     data_dict: dict[str, pd.DataFrame] = {}
 
     def read_individual(file_path: Path) -> pd.DataFrame:
+        #df = pd.read_csv(file_path, index_col=1)
         df = pd.read_csv(file_path, index_col=1).T.iloc[3:]
         names: list[str] = list(df.index)
         mal_formed_names: list[str] = [
@@ -17,6 +18,7 @@ def load_raw_rna_files(data_path: Path) -> dict[str, pd.DataFrame]:
         if mal_formed_names:
             raise ValueError(f"all names should have 1 _, but {mal_formed_names}")
         df["comparison"] = [name.split("_")[0] for name in names]
+        #print(1, df.head(), df.dtypes, sep="\n")
         return df
 
     for csv in ["CSexp2_BETi", "CSexp2_shRNA"]:
@@ -25,11 +27,14 @@ def load_raw_rna_files(data_path: Path) -> dict[str, pd.DataFrame]:
 
 
 def load_processed_rna_files(data_path: Path) -> dict[str, pd.DataFrame]:
-    '''reads processed tsv files'''
+    """reads processed tsv files"""
     data_dict: dict[str, pd.DataFrame] = {}
 
     def read_individual(csv: Path) -> pd.DataFrame:
-        df = pd.read_csv(csv, sep="\t", index_col="gene_id")
+        df = pd.read_csv(csv, sep="\t", index_col=0)
+        df['EFFECTSIZE'] = df.logFC.copy()
+        df['P'] = df.PValue.copy()
+        df = df.reset_index(drop=True)
         return df
 
     for csv in data_path.glob("*.txt"):
@@ -50,4 +55,4 @@ def load_processed_rna_files(data_path: Path) -> dict[str, pd.DataFrame]:
 #         filtered_data: pd.DataFrame = self._data[gene].query(
 #             "comparison in @comparisons"
 #         )
-#         return DataSource(filtered_data)
+#         return DataSource(filtered_data) 239 ES6

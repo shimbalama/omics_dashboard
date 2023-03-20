@@ -10,13 +10,13 @@ def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
 
     # from dataset dropdown get 3 things
     # 1: get df
-    @app.callback(Output(ids.BOX_CHART, "value"), Input(ids.DATASET_DROPDOWN, "value"))
-    def get_df(selected_comparison):
-        return selected_comparison
+    # @app.callback(Output(ids.BOX_CHART, "value"), Input(ids.RAW_RNA_DATA_DROP, "value"))
+    # def get_df(selected_comparison):
+    #     return selected_comparison
 
     # 2: get genes
     @app.callback(
-        Output(ids.GENE_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value")
+        Output(ids.GENE_DROPDOWN, "options"), Input(ids.RAW_RNA_DATA_DROP, "value")
     )
     def set_gene_options(selected_comparison):
         a = [
@@ -27,7 +27,7 @@ def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
 
     # 3: get comparisons
     @app.callback(
-        Output(ids.COMPARISON_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value")
+        Output(ids.COMPARISON_DROPDOWN, "options"), Input(ids.RAW_RNA_DATA_DROP, "value")
     )
     def set_comparison_options(selected_comparison):
         seen = set([])
@@ -56,7 +56,7 @@ def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
 
     @app.callback(
         Output(ids.BOX_CHART, "children"),
-        Input(ids.DATASET_DROPDOWN, "value"),
+        Input(ids.RAW_RNA_DATA_DROP, "value"),
         Input(ids.GENE_DROPDOWN, "value"),
         Input(ids.COMPARISON_DROPDOWN, "value"),
     )
@@ -77,7 +77,7 @@ def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
         children=[
             html.H6("Dataset"),
             dcc.Dropdown(
-                id=ids.DATASET_DROPDOWN,
+                id=ids.RAW_RNA_DATA_DROP,
                 options=list(dfs.keys()),
                 value="CSexp2_shRNA",
                 multi=False,

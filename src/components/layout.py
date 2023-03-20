@@ -1,6 +1,6 @@
 from dash import Dash, html, dcc
 
-from . import rna_raw_tab, box_chart #bar_chart, nation_dropdown, 
+from . import rna_raw_tab, box_chart, rna_processed_tab #bar_chart, nation_dropdown, 
 
 
 def create_layout(app: Dash, dfs1, dfs2) -> html.Div:
@@ -42,9 +42,11 @@ def create_layout(app: Dash, dfs1, dfs2) -> html.Div:
                                     html.Div(
                                         className="app-controls-block",
                                         children=[
+                                            html.H1(app.title),
+                                            html.Hr(),
                                             html.Div(
-                                                className="app-controls-name",
-                                                children="Dataset: ",
+                                            className="dropdown-container",
+                                            children=[rna_processed_tab.render(app, dfs2)],
                                             )
                                         ],
                                     )

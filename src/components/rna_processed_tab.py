@@ -1,95 +1,65 @@
 from dash import Dash, dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import pandas as pd
 from . import ids
 import plotly.express as px
+import dash_bio
+import numpy as np
 
 
 def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
-    # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
-
-    # from dataset dropdown get 3 things
-    # 1: get df
-    @app.callback(Output(ids.BOX_CHART, "value"), Input(ids.DATASET_DROPDOWN, "value"))
-    def get_df(selected_comparison):
-        return selected_comparison
-
-    # 2: get genes
     @app.callback(
-        Output(ids.GENE_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value")
+        Output("vp-graph", "figure"),
+        Input("effect-size", "value"),
+        Input("P-val", "value"),
+        Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
     )
-    def set_gene_options(selected_comparison):
-        a = [
-            {"label": gene, "value": gene} for gene in dfs[selected_comparison].columns
-        ]
-        print(a[:3], len(a))
-        return a
+    def update_graph(effect_lims, genomic_line, datadset_id):
+        """Update rendering of data points upon changing x-value of vertical dashed lines."""
+        df = dfs[datadset_id]
 
-    # 3: get comparisons
-    @app.callback(
-        Output(ids.COMPARISON_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value")
-    )
-    def set_comparison_options(selected_comparison):
-        seen = set([])
-        b = []
-        for comp in dfs[selected_comparison].comparison:
-            if comp not in seen:
-                b.append({"label": comp, "value": comp})
-            seen.add(comp)
-        print(b)
-        return b
-
-    # select gene
-    @app.callback(
-        Output(ids.GENE_DROPDOWN, "value"), Input(ids.GENE_DROPDOWN, "options")
-    )
-    def select_gene_value(available_options):
-        return available_options[0]["value"]
-
-    # select comparison/s
-    @app.callback(
-        Output(ids.COMPARISON_DROPDOWN, "value"),
-        Input(ids.COMPARISON_DROPDOWN, "options"),
-    )
-    def select_comparison_values(available_options):
-        return available_options
-
-    @app.callback(
-        Output(ids.BOX_CHART, "children"),
-        Input(ids.DATASET_DROPDOWN, "value"),
-        Input(ids.GENE_DROPDOWN, "value"),
-        Input(ids.COMPARISON_DROPDOWN, "value"),
-    )
-    def update_box_chart(dataset_choice: str, gene: str, comps: list[str]) -> html.Div:
-        df_filtered = dfs[dataset_choice].query('comparison in @comps')
-        fig = px.box(df_filtered, x="comparison", y=gene)
-        return html.Div(dcc.Graph(figure=fig), id=ids.BOX_CHART)
-
+        return dash_bio.VolcanoPlot(
+            dataframe=df,
+            genomewideline_value=float(genomic_line),
+            effect_size_line=list(map(float, effect_lims)),
+            snp=None,
+            gene="gene_symbol",
+        )
 
     return html.Div(
         children=[
             html.H6("Dataset"),
             dcc.Dropdown(
-                id=ids.DATASET_DROPDOWN,
+                id=ids.PROCESSED_RNA_DATA_DROP,
                 options=list(dfs.keys()),
-                value="CSexp2_shRNA",
+                value="qlf.APAvsCS",
                 multi=False,
             ),
-            html.H6("Gene"),
-            dcc.Dropdown(
-                id=ids.GENE_DROPDOWN,
+            html.H6("P-val"),
+            dcc.Slider(
+                id="P-val",
+                value=4,
+                max=10,
+                min=0,
+                step=0.01,
+                marks={str(num): str(num) for num in range(0, 11, 2)},
             ),
-            html.H6("Comparison"),
-            dcc.Dropdown(
-                id=ids.COMPARISON_DROPDOWN,
-                multi=True,
+            html.H6("Effect-size"),
+            dcc.RangeSlider(
+                id="effect-size",
+                min=-4,
+                max=4,
+                value=[-1, 1],
+                step=0.01,
+                marks={str(num): str(num) for num in range(-4, 5)},
             ),
-            html.Button(
-                className="dropdown-button",
-                children=["Select All"],
-                id=ids.SELECT_ALL_COMPARISONS_BUTTON,
-                n_clicks=0,
+            html.Div(
+                dcc.Graph(
+                    id="vp-graph",
+                    figure=dash_bio.VolcanoPlot(
+                        dataframe=dfs["qlf.APAvsCS"], snp=None, gene="gene_symbol"
+                    ),
+                )
             ),
-            html.Div(id=ids.BOX_CHART),
         ],
     )
