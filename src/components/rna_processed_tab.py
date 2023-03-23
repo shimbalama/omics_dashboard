@@ -1,30 +1,39 @@
 from dash import Dash, dcc, html
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output
 import pandas as pd
 from . import ids
 import plotly.express as px
 import dash_bio
-import numpy as np
 
 
 def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
     @app.callback(
         Output("vp-graph", "figure"),
+        Input("plots", "value"),
         Input("effect-size", "value"),
         Input("P-val", "value"),
         Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
     )
-    def update_graph(effect_lims, genomic_line, datadset_id):
+    def update_graph(plot, effect_lims, genomic_line, datadset_id):
         """Update rendering of data points upon changing x-value of vertical dashed lines."""
-        df = dfs[datadset_id]
+        df = dfs[datadset_id].copy()
+        print(df.head(2))
+        if plot == "Vol":
+            return dash_bio.VolcanoPlot(
+                dataframe=df,
+                genomewideline_value=float(genomic_line),
+                effect_size_line=list(map(float, effect_lims)),
+                snp=None,
+                gene="gene_symbol",
+            )
+        elif plot == "MA":
+            # Define significance threshold
+            alpha = 0.05
+            df['color'] = ['red' if pval <= alpha else 'blue' for pval in df['P']]
 
-        return dash_bio.VolcanoPlot(
-            dataframe=df,
-            genomewideline_value=float(genomic_line),
-            effect_size_line=list(map(float, effect_lims)),
-            snp=None,
-            gene="gene_symbol",
-        )
+            return px.scatter(df, y="EFFECTSIZE", x="P", color='color')
+        else:
+            raise ValueError("wtf")
 
     return html.Div(
         children=[
@@ -33,6 +42,13 @@ def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
                 id=ids.PROCESSED_RNA_DATA_DROP,
                 options=list(dfs.keys()),
                 value="qlf.APAvsCS",
+                multi=False,
+            ),
+            html.H6("Plot_type"),
+            dcc.Dropdown(
+                id="plots",
+                options=["Vol", "MA"],
+                value="Vol",
                 multi=False,
             ),
             html.H6("P-val"),
