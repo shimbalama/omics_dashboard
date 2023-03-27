@@ -1,9 +1,9 @@
 from dash import Dash, html, dcc
 
-from . import rna_raw_tab, box_chart #bar_chart, nation_dropdown, 
+from . import rna_raw_tab, box_chart, rna_processed_tab  # bar_chart, nation_dropdown,
 
 
-def create_layout(app: Dash, dfs1, dfs2) -> html.Div:
+def create_layout(app: Dash, data) -> html.Div:
     return html.Div(
         html.Div(
             id="vp-control-tabs",
@@ -14,42 +14,64 @@ def create_layout(app: Dash, dfs1, dfs2) -> html.Div:
                     value="what-is",
                     children=[
                         dcc.Tab(
-                            label="RNA_raw",
-                            value="RNA_raw",
-                            children=html.Div(
-                                className="control-tab",
-                                children=[
-                                    html.Div(
-                                        className="app-controls-block",
-                                        children=[
-                                            html.H1(app.title),
-                                            html.Hr(),
-                                            html.Div(
-                                            className="dropdown-container",
-                                            children=[rna_raw_tab.render(app, dfs1)],
+                            label="RNAseq (bulk)",
+                            value="tab1",
+                            children=[
+                                dcc.Tabs(
+                                    id="subtabs",
+                                    value="subtab1",
+                                    children=[
+                                        dcc.Tab(
+                                            label="raw",
+                                            value="raw",
+                                            children=html.Div(
+                                                className="control-tab",
+                                                children=[
+                                                    html.Div(
+                                                        className="app-controls-block",
+                                                        children=[
+                                                            html.H1(app.title),
+                                                            html.Hr(),
+                                                            html.Div(
+                                                                className="dropdown-container",
+                                                                children=[
+                                                                    rna_raw_tab.render(
+                                                                        app, data
+                                                                    )
+                                                                ],
+                                                            ),
+                                                        ],
+                                                    )
+                                                ],
                                             ),
-                                        ],
-                                    )
-                                ],
-                            ),
-                        ),
-                        dcc.Tab(
-                            label="RNA_processed",
-                            value="RNA_processed",
-                            children=html.Div(
-                                className="control-tab",
-                                children=[
-                                    html.Div(
-                                        className="app-controls-block",
-                                        children=[
-                                            html.Div(
-                                                className="app-controls-name",
-                                                children="Dataset: ",
-                                            )
-                                        ],
-                                    )
-                                ],
-                            ),
+                                        ),
+                                        dcc.Tab(
+                                            label="processed",
+                                            value="processed",
+                                            children=html.Div(
+                                                className="control-tab",
+                                                children=[
+                                                    html.Div(
+                                                        className="app-controls-block",
+                                                        children=[
+                                                            html.H1(app.title),
+                                                            html.Hr(),
+                                                            html.Div(
+                                                                className="dropdown-container",
+                                                                children=[
+                                                                    rna_processed_tab.render(
+                                                                        app, data
+                                                                    )
+                                                                ],
+                                                            ),
+                                                        ],
+                                                    )
+                                                ],
+                                            ),
+                                        ),
+                                    ],
+                                )
+                            ],
                         ),
                         dcc.Tab(
                             label="RNA_single_cell",

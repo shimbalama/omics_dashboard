@@ -1,95 +1,120 @@
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
-import pandas as pd
 from . import ids
 import plotly.express as px
+import dash_bio
+from src.read_files import RNASeqData
+import pandas as pd
 
 
-def render(app: Dash, dfs: dict[str, pd.DataFrame]) -> html.Div:
-    # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
-
-    # from dataset dropdown get 3 things
-    # 1: get df
-    @app.callback(Output(ids.BOX_CHART, "value"), Input(ids.DATASET_DROPDOWN, "value"))
-    def get_df(selected_comparison):
-        return selected_comparison
-
-    # 2: get genes
+def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
+    # get comparisons
     @app.callback(
-        Output(ids.GENE_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value")
-    )
-    def set_gene_options(selected_comparison):
-        a = [
-            {"label": gene, "value": gene} for gene in dfs[selected_comparison].columns
-        ]
-        print(a[:3], len(a))
-        return a
-
-    # 3: get comparisons
-    @app.callback(
-        Output(ids.COMPARISON_DROPDOWN, "options"), Input(ids.DATASET_DROPDOWN, "value")
+        Output("comp", "options"),
+        Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
     )
     def set_comparison_options(selected_comparison):
-        seen = set([])
-        b = []
-        for comp in dfs[selected_comparison].comparison:
-            if comp not in seen:
-                b.append({"label": comp, "value": comp})
-            seen.add(comp)
-        print(b)
-        return b
+        selected_data = data[selected_comparison]
 
-    # select gene
-    @app.callback(
-        Output(ids.GENE_DROPDOWN, "value"), Input(ids.GENE_DROPDOWN, "options")
-    )
-    def select_gene_value(available_options):
-        return available_options[0]["value"]
+        return [{"label": comp, "value": comp} for comp in selected_data.degs]
 
     # select comparison/s
     @app.callback(
-        Output(ids.COMPARISON_DROPDOWN, "value"),
-        Input(ids.COMPARISON_DROPDOWN, "options"),
+        Output("comp", "value"),
+        Input("comp", "options"),
     )
     def select_comparison_values(available_options):
         return available_options
 
     @app.callback(
-        Output(ids.BOX_CHART, "children"),
-        Input(ids.DATASET_DROPDOWN, "value"),
-        Input(ids.GENE_DROPDOWN, "value"),
-        Input(ids.COMPARISON_DROPDOWN, "value"),
+        Output("vp-graph", "figure"),
+        Input("comp", "value"),
+        Input("plots", "value"),
+        Input("effect-size", "value"),
+        Input("P-val", "value"),
+        Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
     )
-    def update_box_chart(dataset_choice: str, gene: str, comps: list[str]) -> html.Div:
-        df_filtered = dfs[dataset_choice].query('comparison in @comps')
-        fig = px.box(df_filtered, x="comparison", y=gene)
-        return html.Div(dcc.Graph(figure=fig), id=ids.BOX_CHART)
+    def update_graph(
+        comp: str,
+        plot: str,
+        effect_lims: list[str],
+        genomic_line: str,
+        datadset_id: str,
+    ):
+        """Update rendering of data points upon changing x-value of vertical dashed lines."""
 
+        selcted_data: RNASeqData = data[datadset_id]
+        df: pd.DataFrame = selcted_data.processed_dfs[comp].copy()
+        print(df.head())
+        if plot == "Vol":
+            return dash_bio.VolcanoPlot(
+                dataframe=df,
+                genomewideline_value=float(genomic_line),
+                effect_size_line=list(map(float, effect_lims)),
+                snp=None,
+                gene="gene_symbol",
+                width=1111,
+                height=888,
+            )
+        elif plot == "MA":
+            # Define significance threshold
+            alpha = 0.05
+            df["color"] = ["red" if pval <= alpha else "blue" for pval in df["P"]]
+
+            return px.scatter(df, y="EFFECTSIZE", x="P", color="color")
+        else:
+            raise ValueError("wtf")
 
     return html.Div(
         children=[
             html.H6("Dataset"),
             dcc.Dropdown(
-                id=ids.DATASET_DROPDOWN,
-                options=list(dfs.keys()),
-                value="CSexp2_shRNA",
+                id=ids.PROCESSED_RNA_DATA_DROP,
+                options=list(data.keys()),
+                value="qlf.APAvsCS",
                 multi=False,
             ),
-            html.H6("Gene"),
+            html.H6("Plot_type"),
             dcc.Dropdown(
-                id=ids.GENE_DROPDOWN,
+                id="plots",
+                options=["Vol", "MA"],
+                value="Vol",
+                multi=False,
             ),
-            html.H6("Comparison"),
+            html.H6("comp"),
             dcc.Dropdown(
-                id=ids.COMPARISON_DROPDOWN,
-                multi=True,
+                id="comp",
+                multi=False,
             ),
-            html.Button(
-                className="dropdown-button",
-                children=["Select All"],
-                id=ids.SELECT_ALL_COMPARISONS_BUTTON,
-                n_clicks=0,
+            html.H6("P-val"),
+            dcc.Slider(
+                id="P-val",
+                value=4,
+                max=10,
+                min=0,
+                step=0.01,
+                marks={str(num): str(num) for num in range(0, 11, 2)},
             ),
-            html.Div(id=ids.BOX_CHART),
+            html.H6("Effect-size"),
+            dcc.RangeSlider(
+                id="effect-size",
+                min=-4,
+                max=4,
+                value=[-1, 1],
+                step=0.01,
+                marks={str(num): str(num) for num in range(-4, 5)},
+            ),
+            html.Div(
+                dcc.Graph(
+                    id="vp-graph",
+                    figure=dash_bio.VolcanoPlot(
+                        dataframe=data["BETi"].processed_dfs["qlf.APAvsCS"],
+                        snp=None,
+                        gene="gene_symbol",
+                        width=1111,
+                        height=888,
+                    ),
+                )
+            ),
         ],
     )

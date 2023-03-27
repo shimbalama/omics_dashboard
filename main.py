@@ -1,18 +1,20 @@
 from dash import Dash
 from dash_bootstrap_components.themes import BOOTSTRAP
-from src.read_files import load_raw_rna_files, load_processed_rna_files
+from src.read_files import RNASeqData
 from src.components.layout import create_layout
 from pathlib import Path
 
 DATA_PATH = Path("./data").absolute()
+bulk = DATA_PATH / 'rna' / 'bulk'
+RNASEQ = list(bulk.glob('*'))
+print(RNASEQ)
 
 
 def main() -> None:
-    dfs1 = load_raw_rna_files(DATA_PATH)#dict of functions? 2do?
-    dfs2 = load_processed_rna_files(DATA_PATH)#dict of functions? 2do?
+    data = {path.name: RNASeqData(path) for path in RNASEQ}
     app = Dash(external_stylesheets=[BOOTSTRAP])
     app.title = "Omics dashboard"
-    app.layout = create_layout(app, dfs1, dfs2)
+    app.layout = create_layout(app, data)
     app.run()
 
 

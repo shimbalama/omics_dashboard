@@ -1,6 +1,11 @@
 # data
-data/*.csv
-data/*.txt
+data/*
+
+#testing
+play*
+*.ipynb_checkpoints
+*.ipynb
+test.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
