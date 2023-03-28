@@ -45,7 +45,6 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
 
         selcted_data: RNASeqData = data[datadset_id]
         df: pd.DataFrame = selcted_data.processed_dfs[comp].copy()
-        print(df.head())
         if plot == "Vol":
             return dash_bio.VolcanoPlot(
                 dataframe=df,
@@ -71,7 +70,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
             dcc.Dropdown(
                 id=ids.PROCESSED_RNA_DATA_DROP,
                 options=list(data.keys()),
-                value="qlf.APAvsCS",
+                value="BETi",
                 multi=False,
             ),
             html.H6("Plot_type"),
@@ -108,7 +107,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
                 dcc.Graph(
                     id="vp-graph",
                     figure=dash_bio.VolcanoPlot(
-                        dataframe=data["BETi"].processed_dfs["qlf.APAvsCS"],
+                        dataframe=data["BETi"].processed_dfs["APAvsCS"],
                         snp=None,
                         gene="gene_symbol",
                         width=1111,
