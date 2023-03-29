@@ -5,12 +5,15 @@ from src.read_files import RNASeqData
 import plotly.express as px
 import pandas as pd
 
+from src.helpers import make_list_of_dicts
+
 
 def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
 
-    def make_box(df: pd.DataFrame, gene: str, dataset_choice: str) -> html.Div:
-        """"""
+    def draw_box_chart(df: pd.DataFrame, gene: str, dataset_choice: str) -> html.Div:
+        """Draws a box and wisker of the CPM data for each set of replicates for eact
+        comparison and overlays the respective FDR value"""
         fig = px.box(
             df,
             x="comparison",
@@ -19,17 +22,15 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
             width=1111,
             height=888,
             title=f"Boxplot for {gene} CPMs",
-            labels={"x": "Comparison type", "y": "CPM"}#wtf? TODO
+            labels={"comparison": "Comparison type", gene: "CPM"},
         )
 
         for comp in df.comparison.unique():
             DEG_df: pd.DataFrame | None = data[dataset_choice].processed_dfs.get(comp)
-
             if DEG_df is not None:
                 FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
             else:
                 FDR = 0.0
-
             fig.add_annotation(
                 x=comp,
                 y=df.query("comparison == @comp")[gene].median(),
@@ -38,11 +39,6 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
                 showarrow=False,
             )
         return html.Div(dcc.Graph(figure=fig), id=ids.BOX_CHART)
-
-    def make_list_of_dicts(values: list[str]):
-        """Convert a list of strs into a list where those strings are values in dicts
-        against keys label and value, for use in callbacks"""
-        return [{"label": val, "value": val} for val in values]
 
     @app.callback(
         Output(ids.GENE_DROPDOWN, "options"), Input(ids.RAW_RNA_DATA_DROP, "value")
@@ -84,11 +80,12 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         Input(ids.COMPARISON_DROPDOWN, "value"),
     )
     def update_box_chart(dataset_choice: str, gene: str, comps: list[str]) -> html.Div:
+        """Re draws a box and wisker of the CPM data for each set of replicates for eact
+        comparison and overlays the respective FDR value"""
         selected_data = data[dataset_choice]
-        # TODO add FDR
         df_filtered = selected_data.raw_df.query("comparison in @comps")
 
-        return make_box(df_filtered, gene, dataset_choice)
+        return draw_box_chart(df_filtered, gene, dataset_choice)
 
     default = list(data.keys())
     return html.Div(
@@ -116,7 +113,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
                 n_clicks=0,
             ),
             html.Div(
-                make_box(
+                draw_box_chart(
                     data[default[0]].raw_df,
                     data[default[0]].raw_df.columns[0],
                     default[0],

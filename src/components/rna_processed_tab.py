@@ -1,42 +1,42 @@
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 from . import ids
-import plotly.express as px
 import dash_bio
 from src.read_files import RNASeqData
 import pandas as pd
+from src.helpers import make_list_of_dicts
 
 
 def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     # get comparisons
+    def draw_volcano(df, genomic_line=1, effect_lims=[-3,3]):
+        return dash_bio.VolcanoPlot(
+            dataframe=df,
+            genomewideline_value=float(genomic_line),
+            effect_size_line=list(map(float, effect_lims)),
+            snp=None,
+            gene="gene_symbol",
+            width=1111,
+            height=888,
+        )
+
     @app.callback(
-        Output("comp", "options"),
+        Output(ids.PROCESSED_COMPARISON_DROPDOWN, "options"),
         Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
     )
-    def set_comparison_options(selected_comparison):
-        selected_data = data[selected_comparison]
-
-        return [{"label": comp, "value": comp} for comp in selected_data.degs]
-
-    # select comparison/s
-    @app.callback(
-        Output("comp", "value"),
-        Input("comp", "options"),
-    )
-    def select_comparison_values(available_options):
-        return available_options
+    def set_comparison_options(experiment: str) -> list[dict[str, str]]:
+        """Set the comparison option by given experiemnt name"""
+        return make_list_of_dicts(list(data[experiment].degs))
 
     @app.callback(
-        Output("vp-graph", "figure"),
-        Input("comp", "value"),
-        Input("plots", "value"),
-        Input("effect-size", "value"),
-        Input("P-val", "value"),
+        Output(ids.VOLCANO, "figure"),
+        Input(ids.PROCESSED_COMPARISON_DROPDOWN, "value"),
+        Input(ids.EEFECT_SIZE, "value"),
+        Input(ids.PVALUE, "value"),
         Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
     )
     def update_graph(
         comp: str,
-        plot: str,
         effect_lims: list[str],
         genomic_line: str,
         datadset_id: str,
@@ -45,49 +45,30 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
 
         selcted_data: RNASeqData = data[datadset_id]
         df: pd.DataFrame = selcted_data.processed_dfs[comp].copy()
-        if plot == "Vol":
-            return dash_bio.VolcanoPlot(
-                dataframe=df,
-                genomewideline_value=float(genomic_line),
-                effect_size_line=list(map(float, effect_lims)),
-                snp=None,
-                gene="gene_symbol",
-                width=1111,
-                height=888,
-            )
-        elif plot == "MA":
-            # Define significance threshold
-            alpha = 0.05
-            df["color"] = ["red" if pval <= alpha else "blue" for pval in df["P"]]
+        return draw_volcano(df, genomic_line, effect_lims)
 
-            return px.scatter(df, y="EFFECTSIZE", x="P", color="color")
-        else:
-            raise ValueError("wtf")
-
+    experiments = list(data.keys())
+    first_experiment = experiments[0]
+    default_comparison = list(data[first_experiment].processed_dfs.keys())[0]
+    default_df = data[first_experiment].processed_dfs[default_comparison]
     return html.Div(
         children=[
             html.H6("Dataset"),
             dcc.Dropdown(
                 id=ids.PROCESSED_RNA_DATA_DROP,
-                options=list(data.keys()),
-                value="BETi",
+                options=experiments,
+                value=first_experiment,
                 multi=False,
             ),
-            html.H6("Plot_type"),
+            html.H6("Comparison"),
             dcc.Dropdown(
-                id="plots",
-                options=["Vol", "MA"],
-                value="Vol",
+                id=ids.PROCESSED_COMPARISON_DROPDOWN,
                 multi=False,
-            ),
-            html.H6("comp"),
-            dcc.Dropdown(
-                id="comp",
-                multi=False,
+                value=default_comparison,
             ),
             html.H6("P-val"),
             dcc.Slider(
-                id="P-val",
+                id=ids.PVALUE,
                 value=4,
                 max=10,
                 min=0,
@@ -96,7 +77,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
             ),
             html.H6("Effect-size"),
             dcc.RangeSlider(
-                id="effect-size",
+                id=ids.EEFECT_SIZE,
                 min=-4,
                 max=4,
                 value=[-1, 1],
@@ -105,13 +86,8 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
             ),
             html.Div(
                 dcc.Graph(
-                    id="vp-graph",
-                    figure=dash_bio.VolcanoPlot(
-                        dataframe=data["BETi"].processed_dfs["APAvsCS"],
-                        snp=None,
-                        gene="gene_symbol",
-                        width=1111,
-                        height=888,
+                    id=ids.VOLCANO,
+                    figure=draw_volcano(default_df
                     ),
                 )
             ),
