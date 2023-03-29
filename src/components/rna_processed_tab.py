@@ -9,7 +9,7 @@ from src.helpers import make_list_of_dicts
 
 def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     # get comparisons
-    def draw_volcano(df, genomic_line=1, effect_lims=[-3,3]):
+    def draw_volcano(df, genomic_line, effect_lims):
         return dash_bio.VolcanoPlot(
             dataframe=df,
             genomewideline_value=float(genomic_line),
@@ -29,6 +29,14 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         return make_list_of_dicts(list(data[experiment].degs))
 
     @app.callback(
+        Output(ids.PROCESSED_COMPARISON_DROPDOWN, "value"),
+        Input(ids.PROCESSED_COMPARISON_DROPDOWN, "options"),
+    )
+    def select_gene_value(options: list[dict[str, str]]) -> str:
+        """Select first comparison as default value after changing dataset"""
+        return options[0]["value"]
+
+    @app.callback(
         Output(ids.VOLCANO, "figure"),
         Input(ids.PROCESSED_COMPARISON_DROPDOWN, "value"),
         Input(ids.EEFECT_SIZE, "value"),
@@ -42,9 +50,9 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         datadset_id: str,
     ):
         """Update rendering of data points upon changing x-value of vertical dashed lines."""
-
         selcted_data: RNASeqData = data[datadset_id]
         df: pd.DataFrame = selcted_data.processed_dfs[comp].copy()
+        print(1111, df.head())
         return draw_volcano(df, genomic_line, effect_lims)
 
     experiments = list(data.keys())
@@ -87,8 +95,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
             html.Div(
                 dcc.Graph(
                     id=ids.VOLCANO,
-                    figure=draw_volcano(default_df
-                    ),
+                    figure=draw_volcano(default_df, 1, [-3, 3]),
                 )
             ),
         ],
