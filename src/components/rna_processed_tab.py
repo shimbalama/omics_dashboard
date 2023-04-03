@@ -52,7 +52,6 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         """Update rendering of data points upon changing x-value of vertical dashed lines."""
         selcted_data: RNASeqData = data[datadset_id]
         df: pd.DataFrame = selcted_data.processed_dfs[comp].copy()
-        print(1111, df.head())
         return draw_volcano(df, genomic_line, effect_lims)
 
     experiments = list(data.keys())

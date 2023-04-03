@@ -14,6 +14,30 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     def draw_box_chart(df: pd.DataFrame, gene: str, dataset_choice: str) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         comparison and overlays the respective FDR value"""
+        def draw_line(fig, x_start, x_end, y, height, plot_type='line', ref='paper', line_vals = {'color':"magenta",'width':3}):
+            # Top line
+            fig.add_shape(type=plot_type,
+                xref=ref, yref=ref,
+                x0=x_start, y0=y+height,
+                x1=x_end, y1=y+height,
+                line=line_vals)
+
+            # Left line
+            fig.add_shape(type=plot_type,
+                xref=ref, yref=ref,
+                x0=x_start, y0=y,
+                x1=x_start, y1=y+height,
+                line=line_vals)
+
+            # Right line
+            fig.add_shape(type=plot_type,
+                xref=ref, yref=ref,
+                x0=x_end, y0=y+height,
+                x1=x_end, y1=y,
+                line=line_vals)
+            
+            return fig
+        
         fig = px.box(
             df,
             x="comparison",
@@ -25,19 +49,33 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
             labels={"comparison": "Comparison type", gene: "CPM"},
         )
 
-        for comp in df.comparison.unique():
+        for i, comp in enumerate(df.comparison.unique(), start=1):
             DEG_df: pd.DataFrame | None = data[dataset_choice].processed_dfs.get(comp)
             if DEG_df is not None:
                 FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
             else:
                 FDR = 0.0
+            y = df.query("comparison == @comp")[gene].median()
             fig.add_annotation(
                 x=comp,
-                y=df.query("comparison == @comp")[gene].median(),
+                y=y,
                 text=f"{FDR:.1e}",
                 yshift=10,
                 showarrow=False,
             )
+            i /= 9
+            print(111111,i, y)
+            fig = draw_line(fig, i, i+0.2, 0.6, 0.6+i, plot_type='line', ref='paper', line_vals = {'color':"magenta",'width':3})
+        fig.add_shape(type="line",
+            xref="paper", yref="paper",
+            x0=0.1, y0=0.8,
+            x1=0.43, y1=0.8,
+            line=dict(
+                color="magenta",
+                width=3,
+            ),
+                    )
+
         return html.Div(dcc.Graph(figure=fig), id=ids.BOX_CHART)
 
     @app.callback(

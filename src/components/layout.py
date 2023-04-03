@@ -46,14 +46,14 @@ def create_layout(app: Dash, data) -> html.Div:
                     children=[
                         tab_layout(
                             "RNAseq (bulk)",
-                            'subtabs_id1',
+                            "subtabs_id1",
                             sub_tab_layout(app, data, "raw", rna_raw_tab),
                             sub_tab_layout(app, data, "pro", rna_processed_tab),
                         ),
-                        tab_layout("RNA_single_cell",'subtabs_id2'),
-                        tab_layout("Protein", 'subtabs_id3'),
-                        tab_layout("Phosphoproteomics",'subtabs_id4')
-                        
+                        tab_layout("RNA_single_cell", "subtabs_id2"),
+                        tab_layout("Protein", "subtabs_id3"),
+                        tab_layout("Phosphoproteomics", "subtabs_id4"),
+                        tab_layout("Function", "subtabs_id5"),
                     ],
                 )
             ],
