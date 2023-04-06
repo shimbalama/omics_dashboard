@@ -55,6 +55,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         return draw_volcano(df, genomic_line, effect_lims)
 
     experiments = list(data.keys())
+    print('qqqqqqqqqqqqqq',data, experiments)
     first_experiment = experiments[0]
     default_comparison = list(data[first_experiment].processed_dfs.keys())[0]
     default_df = data[first_experiment].processed_dfs[default_comparison]

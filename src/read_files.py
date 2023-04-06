@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 
+
 @dataclass(slots=True, frozen=True)
 class RNASeqData:
     """Data pertaining to a chromosomal region
@@ -30,7 +31,7 @@ class RNASeqData:
     path: Path
     name: str = field(init=False)
     raw_df: pd.DataFrame = field(init=False, repr=False)
-    raw_mean_df: pd.DataFrame = field(init=False, repr=False)
+    #raw_mean_df: pd.DataFrame = field(init=False, repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(init=False, repr=False)
 
     # def filter(
@@ -49,21 +50,22 @@ class RNASeqData:
 
     def read_individual(self) -> pd.DataFrame:
         # df = pd.read_csv(, index_col=1)
-        print(self.path, list(self.path.glob('*')), list(self.path.glob("*.csv")), sep='\n')
+        print(2222222222,self.path, list(self.path.glob('*')), list(self.path.glob("*.csv")), sep='\n')
         fin = list(self.path.glob("*.csv"))
         if fin:
             fin = fin.pop()
-            df = pd.read_csv(fin, index_col=1).T.iloc[3:]
+            df = pd.read_csv(fin, index_col=0).T.iloc[3:]
             names: list[str] = list(df.index)
-            mal_formed_names: list[str] = [
-                name for name in names if len(name.split("_")) != 2
-            ]
-            if mal_formed_names:
-                raise ValueError(f"all names should have 1 _, but {mal_formed_names}")
+            # mal_formed_names: list[str] = [
+            #     name for name in names if len(name.split("_")) != 2
+            # ]
+            # if mal_formed_names:
+            #     raise ValueError(f"all names should have 1 _, but {mal_formed_names}")
             df["comparison"] = [name.split("_")[0] for name in names]
             return df
         else:
-            print('log.warn {self.path} has no data')
+            print(f'log.warn {self.path} has no data!!!')
+            raise FileNotFoundError()
 
     #TODO, these properties are the same, just dif name in dif files!!
     @property
@@ -83,7 +85,13 @@ class RNASeqData:
         data_dict: dict[str, pd.DataFrame] = {}
 
         def read_individual(csv: Path) -> pd.DataFrame:
-            df = pd.read_csv(csv, sep="\t", index_col=0)
+            if csv.suffix.endswith('.csv'):
+                delimitor = ','
+            elif csv.suffix.endswith('.tsv') or csv.suffix.endswith('.txt'):
+                delimitor = '\t'
+            else:
+                raise ValueError('delimitor unknown!')
+            df = pd.read_csv(csv, sep=delimitor)
             df.columns =[
                     "gene_id",
                     "gene_symbol",
@@ -98,8 +106,10 @@ class RNASeqData:
             df = df.reset_index(drop=True)
             return df
         DEGs = self.path / 'DEGs'
-        for csv in DEGs.glob("*.txt"):
+        for csv in DEGs.glob("*"):
             name = str(csv.name).strip().split("_")[0]
             data_dict[name] = read_individual(csv)
+        if not data_dict:
+            raise FileNotFoundError(f'No DEG data found for {self.path}')
 
         return data_dict

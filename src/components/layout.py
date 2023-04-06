@@ -44,6 +44,7 @@ def create_layout(app: Dash, data) -> html.Div:
                     id="vp-tabs",
                     value="what-is",
                     children=[
+                        tab_layout("User guide: ie, DEG files should be name with a name that matches col in CPM cols", "subtabs_id0"),
                         tab_layout(
                             "RNAseq (bulk)",
                             "subtabs_id1",
