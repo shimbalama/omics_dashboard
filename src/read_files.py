@@ -56,12 +56,8 @@ class RNASeqData:
             fin = fin.pop()
             df = pd.read_csv(fin, index_col=0).T.iloc[3:]
             names: list[str] = list(df.index)
-            # mal_formed_names: list[str] = [
-            #     name for name in names if len(name.split("_")) != 2
-            # ]
-            # if mal_formed_names:
-            #     raise ValueError(f"all names should have 1 _, but {mal_formed_names}")
             df["comparison"] = [name.split("_")[0] for name in names]
+            df["point_of_ref"] = ['yes' if '_POR_' in name else 'no' for name in names]
             return df
         else:
             print(f'log.warn {self.path} has no data!!!')
@@ -75,6 +71,18 @@ class RNASeqData:
     @property
     def degs(self):
         return set(self.processed_dfs.keys())
+    
+    @property
+    def point_of_reference(self):
+
+        ref_df = self.raw_df.query('point_of_ref == "yes"')
+        point_of_ref = set(ref_df.comparison)
+        if len(point_of_ref) == 1:
+            return point_of_ref.pop()
+        elif len(point_of_ref) > 1:
+            raise ValueError('Multiple comparisons have POR tag!')
+        else:
+            return None
 
     @property
     def mean_count(self) -> pd.DataFrame:

@@ -55,12 +55,21 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         return draw_volcano(df, genomic_line, effect_lims)
 
     experiments = list(data.keys())
-    print('qqqqqqqqqqqqqq',data, experiments)
     first_experiment = experiments[0]
     default_comparison = list(data[first_experiment].processed_dfs.keys())[0]
     default_df = data[first_experiment].processed_dfs[default_comparison]
     return html.Div(
         children=[
+            html.P(
+                "You can use Volcano Plot to interactively "
+                "identify clinically meaningful markers in "
+                "genomic experiments, i.e., markers that are "
+                "statistically significant and have an effect "
+                "size greater than some threshold. "
+                "Specifically, volcano plots depict the negative "
+                "log-base-10 p-values plotted against their "
+                "effect size."
+            ),
             html.H6("Dataset"),
             dcc.Dropdown(
                 id=ids.PROCESSED_RNA_DATA_DROP,

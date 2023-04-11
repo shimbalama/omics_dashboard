@@ -7,36 +7,6 @@ import pandas as pd
 
 from src.helpers import make_list_of_dicts, add_FDR_brackets, get_y_range
 
-# def draw_line(fig, x_start, x_end, y, height, plot_type='line', ref='paper', line_vals = {'color':"magenta",'width':3}):
-#             # Top line
-#             fig.add_shape(type=plot_type,
-#                 xref=ref, yref=ref,
-#                 x0=x_start, y0=y+height,
-#                 x1=x_end, y1=y+height,
-#                 line=line_vals)
-
-#             # Left line
-#             fig.add_shape(type=plot_type,
-#                 xref=ref, yref=ref,
-#                 x0=x_start, y0=y,
-#                 x1=x_start, y1=y+height,
-#                 line=line_vals)
-
-#             # Right line
-#             fig.add_shape(type=plot_type,
-#                 xref=ref, yref=ref,
-#                 x0=x_end, y0=y+height,
-#                 x1=x_end, y1=y,
-#                 line=line_vals)
-            
-#             return fig
-
-# x=1/i
-            
-#             print(111111,x, x+x, 0.6, 0.6+i,list(fig.select_xaxes()))
-#             fig = draw_line(fig, x-(1*x*0.5), x+x, 0.6, (0.6+(i*2))/50, plot_type='line', ref='paper', line_vals = {'color':"magenta",'width':3})
-       
-
 
 def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
@@ -44,7 +14,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     def draw_box_chart(df: pd.DataFrame, gene: str, dataset_choice: str) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         comparison and overlays the respective FDR value"""
-        print(df.head())
+        RNA_seq_data: RNASeqData = data[dataset_choice]
         
         fig = px.box(
             df,
@@ -59,27 +29,30 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         )
         unique_comparisons = df.comparison.unique()
         y_range = get_y_range(len(unique_comparisons))
-        cytokine_storm = None
+        cytokine_storm = 'None'
         cytokine_storm_FDR = 0.0 #fix this shit...
         for i, comp in enumerate(unique_comparisons):
-            if comp.startswith('CS'):
+            if comp == RNA_seq_data.point_of_reference:
+                print(222222,comp, RNA_seq_data.point_of_reference)
                 cytokine_storm = i
-                DEG_df: pd.DataFrame | None = data[dataset_choice].processed_dfs.get(comp)
+                DEG_df: pd.DataFrame | None = RNA_seq_data.processed_dfs.get(comp)
                 if DEG_df is not None:
                     cytokine_storm_FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
                 break
         for i, comp in enumerate(unique_comparisons):
-            if not cytokine_storm:
+            print(555555,dataset_choice, i, cytokine_storm)
+            if cytokine_storm == 'None':
                 break #if removed can't plot
             if i == cytokine_storm:
+                print(7777777)
                 continue
-            DEG_df: pd.DataFrame | None = data[dataset_choice].processed_dfs.get(comp)
+            DEG_df: pd.DataFrame | None = RNA_seq_data.processed_dfs.get(comp)
             if DEG_df is not None:
                 FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
             else:
                 FDR = cytokine_storm_FDR
-                print(3333, comp, dataset_choice, data[dataset_choice].processed_dfs)
-                assert 'CTRL' in comp
+                if 'CTRL' not in comp.upper():
+                    print(f'log.warn: CTRL not in comp : {comp}')
             y = df.query("comparison == @comp")[gene].median()
             fig.add_annotation(
                 x=comp,
@@ -88,6 +61,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
                 yshift=10,
                 showarrow=False,
             )
+            print(9999, FDR)
             fig = add_FDR_brackets(fig, FDR, i, [i,cytokine_storm], y_range)
 
         return html.Div(dcc.Graph(figure=fig), id=ids.BOX_CHART)

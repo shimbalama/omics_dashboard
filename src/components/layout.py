@@ -1,6 +1,6 @@
 from dash import Dash, html, dcc
 
-from . import rna_raw_tab, rna_processed_tab
+from . import rna_raw_tab, rna_processed_tab, text_tab1, text_tab2
 
 
 def tab_layout(name, subtabs_id, *args):
@@ -44,12 +44,19 @@ def create_layout(app: Dash, data) -> html.Div:
                     id="vp-tabs",
                     value="what-is",
                     children=[
-                        tab_layout("User guide: ie, DEG files should be name with a name that matches col in CPM cols", "subtabs_id0"),
+                        tab_layout(
+                            "User guide",
+                            "subtabs_id0",
+                            sub_tab_layout(app, data, "Introduction", text_tab1),
+                            sub_tab_layout(app, data, "Input files", text_tab2),
+                        ),
                         tab_layout(
                             "RNAseq (bulk)",
                             "subtabs_id1",
-                            sub_tab_layout(app, data, "raw", rna_raw_tab),
-                            sub_tab_layout(app, data, "pro", rna_processed_tab),
+                            sub_tab_layout(app, data, "CPM and FDR", rna_raw_tab),
+                            sub_tab_layout(
+                                app, data, "Volcano of DEG", rna_processed_tab
+                            ),
                         ),
                         tab_layout("RNA_single_cell", "subtabs_id2"),
                         tab_layout("Protein", "subtabs_id3"),
