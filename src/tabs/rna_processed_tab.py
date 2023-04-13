@@ -6,6 +6,8 @@ from src.read_files import RNASeqData
 import pandas as pd
 from src.helpers import make_list_of_dicts
 
+BULK = 'rna_bulk'
+
 
 def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     # get comparisons
@@ -26,7 +28,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     )
     def set_comparison_options(experiment: str) -> list[dict[str, str]]:
         """Set the comparison option by given experiemnt name"""
-        return make_list_of_dicts(list(data[experiment].degs))
+        return make_list_of_dicts(list(data[BULK][experiment].degs))
 
     @app.callback(
         Output(ids.PROCESSED_COMPARISON_DROPDOWN, "value"),
@@ -50,14 +52,14 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         datadset_id: str,
     ):
         """Update rendering of data points upon changing x-value of vertical dashed lines."""
-        selcted_data: RNASeqData = data[datadset_id]
+        selcted_data: RNASeqData = data[BULK][datadset_id]
         df: pd.DataFrame = selcted_data.processed_dfs[comp].copy()
         return draw_volcano(df, genomic_line, effect_lims)
 
-    experiments = list(data.keys())
+    experiments = list(data[BULK].keys())
     first_experiment = experiments[0]
-    default_comparison = list(data[first_experiment].processed_dfs.keys())[0]
-    default_df = data[first_experiment].processed_dfs[default_comparison]
+    default_comparison = list(data[BULK][first_experiment].processed_dfs.keys())[0]
+    default_df = data[BULK][first_experiment].processed_dfs[default_comparison]
     return html.Div(
         children=[
             html.P(

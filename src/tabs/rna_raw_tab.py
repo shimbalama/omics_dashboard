@@ -7,6 +7,7 @@ import pandas as pd
 
 from src.helpers import make_list_of_dicts, add_FDR_brackets, get_y_range
 
+BULK = 'rna_bulk'
 
 def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
@@ -14,7 +15,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     def draw_box_chart(df: pd.DataFrame, gene: str, dataset_choice: str) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         comparison and overlays the respective FDR value"""
-        RNA_seq_data: RNASeqData = data[dataset_choice]
+        RNA_seq_data: RNASeqData = data[BULK][dataset_choice]
         
         fig = px.box(
             df,
@@ -71,7 +72,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     )
     def set_gene_options(experiment: str) -> list[dict[str, str]]:
         """Populates the gene selection dropdown with options from teh given dataset"""
-        return make_list_of_dicts(list(data[experiment].raw_df.columns))
+        return make_list_of_dicts(list(data[BULK][experiment].raw_df.columns))
 
     @app.callback(
         Output(ids.COMPARISON_DROPDOWN, "options"),
@@ -79,7 +80,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     )
     def set_comparison_options(experiment: str) -> list[dict[str, str]]:
         """Populates the comparison selection dropdown with options from teh given dataset"""
-        return make_list_of_dicts(list(data[experiment].comparisons))
+        return make_list_of_dicts(list(data[BULK][experiment].comparisons))
 
     @app.callback(
         Output(ids.GENE_DROPDOWN, "value"), Input(ids.GENE_DROPDOWN, "options")
@@ -108,12 +109,12 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     def update_box_chart(dataset_choice: str, gene: str, comps: list[str]) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
         comparison and overlays the respective FDR value"""
-        selected_data = data[dataset_choice]
+        selected_data = data[BULK][dataset_choice]
         df_filtered = selected_data.raw_df.query("comparison in @comps")
 
         return draw_box_chart(df_filtered, gene, dataset_choice)
 
-    default = list(data.keys())
+    default = list(data[BULK].keys())
     return html.Div(
         children=[
             html.H6("Dataset"),
@@ -140,8 +141,8 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
             ),
             html.Div(
                 draw_box_chart(
-                    data[default[0]].raw_df,
-                    data[default[0]].raw_df.columns[0],
+                    data[BULK][default[0]].raw_df,
+                    data[BULK][default[0]].raw_df.columns[0],
                     default[0],
                 )
             ),

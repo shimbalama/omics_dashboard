@@ -50,7 +50,6 @@ class RNASeqData:
 
     def read_individual(self) -> pd.DataFrame:
         # df = pd.read_csv(, index_col=1)
-        print(2222222222,self.path, list(self.path.glob('*')), list(self.path.glob("*.csv")), sep='\n')
         fin = list(self.path.glob("*.csv"))
         if fin:
             fin = fin.pop()
