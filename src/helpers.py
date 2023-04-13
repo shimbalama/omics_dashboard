@@ -1,4 +1,7 @@
 import numpy as np
+from typing import Callable
+from functools import partial, reduce
+import pandas as pd
 
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
     """Convert a list of strs into a list where those strings are values in dicts
@@ -114,3 +117,4 @@ def add_FDR_brackets(
     )
 
     return fig
+

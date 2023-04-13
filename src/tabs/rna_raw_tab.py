@@ -1,6 +1,6 @@
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
-from . import ids
+from ..components import ids
 from src.read_files import RNASeqData
 import plotly.express as px
 import pandas as pd

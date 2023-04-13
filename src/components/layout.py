@@ -1,6 +1,6 @@
 from dash import Dash, html, dcc
 
-from . import rna_raw_tab, rna_processed_tab, text_tab1, text_tab2
+from ..tabs import rna_raw_tab, rna_processed_tab, text_tab1, text_tab2
 
 
 def tab_layout(name, subtabs_id, *args):
