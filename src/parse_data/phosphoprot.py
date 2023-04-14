@@ -1,10 +1,7 @@
 from functools import partial, reduce
 from typing import Callable
-
+from pathlib import Path
 import pandas as pd
-
-
-# TODO read all data with MP pool
 
 
 class SchemaProt:
@@ -67,15 +64,17 @@ def add_categories(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     return df.T
 
 
-def load_prot_data() -> pd.DataFrame:
-    # load the data from the CSV file
-    data = pd.read_excel(
-        "/Users/liam/code/data/Finalised_files_for_dashboard/Proteomics/RawoutputPD_FibrosisStim.xlsx",
-    )
+def read_excel(path: Path) -> pd.DataFrame:
+    # load the data
+    files = list(path.glob("*xlsx"))
+    assert len(files) == 1
+    return pd.read_excel(files[0])
+
+def load_prot_data(path: Path) -> pd.DataFrame:
+    df = read_excel(path)
     pipe = [make_gene_col, remove_unwanted_cols, add_categories]
     preprocessor = compose(SchemaProt, *pipe)
-    return preprocessor(data)
-
+    return preprocessor(df)
 
 def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     def choose_pos(gene: str, pos_extact: str | float, pos_range: str) -> str:
@@ -96,12 +95,8 @@ def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     )
     return df
 
-
-def load_phospho_data() -> pd.DataFrame:
-    # load the data from the CSV file
-    df = pd.read_excel(
-        "/Users/liam/code/data/Finalised_files_for_dashboard/Phosphoproteomics/Raw_Phosphoproteomics_ET1-His.xlsx",
-    )
+def load_phospho_data(path: Path) -> pd.DataFrame:
+    df = read_excel(path)
     pipe = [make_gene_col, create_unqiue_id, remove_unwanted_cols, add_categories]
     preprocessor = compose(SchemaPhos, *pipe)
 

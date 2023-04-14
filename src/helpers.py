@@ -1,28 +1,28 @@
 import numpy as np
-from typing import Callable
-from functools import partial, reduce
+
 import pandas as pd
+from dash import dcc, html
+import plotly.express as px
+from src.read_files import RNASeqData, Data
+from .components import ids
+
 
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
     """Convert a list of strs into a list where those strings are values in dicts
     against keys label and value, for use in callbacks"""
     return [{"label": val, "value": val} for val in values]
 
+
 def get_y_range(number_of_comparisons, interline=0.03):
-# Specify in what y_range to plot for each pair of columns
+    # Specify in what y_range to plot for each pair of columns
     y_range = np.zeros([number_of_comparisons, 2])
     for i in range(number_of_comparisons):
         y_range[i] = [0.9 + i * interline, 0.91 + i * interline]
     return y_range
 
+
 def add_FDR_brackets(
-    fig,
-    FDR,
-    i,
-    column_pair,
-    y_range,
-    text_height=1.01,
-    color="black"
+    fig, FDR, i, column_pair, y_range, text_height=1.01, color="black"
 ):
     """Adds notations giving the significance level between two box plot data (t-test two-sided comparison)
 
@@ -49,8 +49,7 @@ def add_FDR_brackets(
     fig: figure
         Figure with the added notation.
     """
-   
-    
+
     if FDR >= 0.05:
         symbol = "ns"
     elif FDR >= 0.01:
@@ -118,3 +117,55 @@ def add_FDR_brackets(
 
     return fig
 
+
+def draw_box_chart(gene: str, data: Data, div_id: str = ids.BOX_CHART, x: str ="comparison") -> html.Div:
+    """Draws a box and wisker of the CPM data for each set of replicates for eact
+    comparison and overlays the respective FDR value"""
+    # rna_seq_data: RNASeqData = data[BULK][dataset_choice]
+
+    fig = px.box(
+        data.df,
+        x=x,
+        y=gene,
+        points="all",
+        width=999,
+        height=666,
+        title=f"Boxplot for {gene} CPMs",
+        labels={"comparison": "Comparison type", gene: "CPM"},
+        facet_row_spacing=0.75,
+    )
+
+    # unique_comparisons = rna_seq_data.raw_df.comparison.unique()
+    # y_range = get_y_range(len(unique_comparisons))
+    # cytokine_storm = "None"
+    # cytokine_storm_FDR = 0.0  # fix this shit...
+    # for i, comp in enumerate(unique_comparisons):
+    #     if comp == rna_seq_data.point_of_reference:
+    #         cytokine_storm = i
+    #         DEG_df: pd.DataFrame | None = rna_seq_data.processed_dfs.get(comp)
+    #         if DEG_df is not None:
+    #             cytokine_storm_FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
+    #         break
+    # for i, comp in enumerate(unique_comparisons):
+    #     if cytokine_storm == "None":
+    #         break  # if removed can't plot
+    #     if i == cytokine_storm:
+    #         continue
+    #     DEG_df: pd.DataFrame | None = rna_seq_data.processed_dfs.get(comp)
+    #     if DEG_df is not None:
+    #         FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
+    #     else:
+    #         FDR = cytokine_storm_FDR
+    #         if "CTRL" not in comp.upper():
+    #             print(f"log.warn: CTRL not in comp : {comp}")
+    #     y = rna_seq_data.raw_df.query("comparison == @comp")[gene].median()
+    #     fig.add_annotation(
+    #         x=comp,
+    #         y=y,
+    #         text=f"{FDR:.1e}",
+    #         yshift=10,
+    #         showarrow=False,
+    #     )
+    #     fig = add_FDR_brackets(fig, FDR, i, [i, cytokine_storm], y_range)
+
+    return html.Div(dcc.Graph(figure=fig), id=div_id)
