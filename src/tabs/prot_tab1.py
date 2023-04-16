@@ -32,7 +32,7 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
             html.Div(
                 draw_box_chart(
                     'TTN',
-                    data[KEY][default[0]].filter('TTN'),
+                    data[KEY][default[0]],
                     'iddd222',
                     'category'
                 )

@@ -13,7 +13,6 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
 
     default = list(data[KEY].keys())
     default_data = data[KEY][default[0]].filter("AAK1")
-    print(1111111111, default_data.df.head(3))
     return html.Div(
         children=[
             html.H6("Dataset"),

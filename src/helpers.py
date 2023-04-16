@@ -131,8 +131,7 @@ def draw_box_chart(
 
     # fig = px.box(df3, y="abun", x="prot_loc", color="sample", log_y=True, points="all",
     #       hover_data=df3.columns)
-    try:
-        fig = px.box(
+    fig = px.box(
         data.df,
         x=x,
         y=gene,
@@ -143,21 +142,18 @@ def draw_box_chart(
         log_y=log,
         title=f"Boxplot for {gene} CPMs",
         labels={"comparison": "Comparison type", gene: "CPM"},
-        facet_row_spacing=0.75,
-        hover_data=data.df.columns,
+        facet_row_spacing=0.75
     )
-    except Exception as e:
-        print(data.df.head(), gene, e)
-    
+    #hover_data=data.df.columns,- causes MANY issues with prot data
 
-    # unique_comparisons = rna_seq_data.raw_df.comparison.unique()
+    # unique_comparisons = data.df.comparison.unique()
     # y_range = get_y_range(len(unique_comparisons))
     # cytokine_storm = "None"
     # cytokine_storm_FDR = 0.0  # fix this shit...
     # for i, comp in enumerate(unique_comparisons):
-    #     if comp == rna_seq_data.point_of_reference:
+    #     if comp == data.point_of_reference:
     #         cytokine_storm = i
-    #         DEG_df: pd.DataFrame | None = rna_seq_data.processed_dfs.get(comp)
+    #         DEG_df: pd.DataFrame | None = data.processed_dfs.get(comp)
     #         if DEG_df is not None:
     #             cytokine_storm_FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
     #         break
@@ -166,14 +162,14 @@ def draw_box_chart(
     #         break  # if removed can't plot
     #     if i == cytokine_storm:
     #         continue
-    #     DEG_df: pd.DataFrame | None = rna_seq_data.processed_dfs.get(comp)
+    #     DEG_df: pd.DataFrame | None = data.processed_dfs.get(comp)
     #     if DEG_df is not None:
     #         FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
     #     else:
     #         FDR = cytokine_storm_FDR
     #         if "CTRL" not in comp.upper():
     #             print(f"log.warn: CTRL not in comp : {comp}")
-    #     y = rna_seq_data.raw_df.query("comparison == @comp")[gene].median()
+    #     y = data.df.query("comparison == @comp")[gene].median()
     #     fig.add_annotation(
     #         x=comp,
     #         y=y,

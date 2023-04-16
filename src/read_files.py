@@ -41,9 +41,8 @@ class ProtData:
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
 
-    def filter(self, gene2: str):
-        
-        return ProtData(self.df, self.df_FDR)
+    # def filter(self, gene2: str):
+    #     return ProtData(self.df, self.df_FDR)
 
 
 @dataclass(slots=True, frozen=True)
@@ -71,15 +70,19 @@ class PhosphoProtData:
     df_FDR: pd.DataFrame = field(repr=False)
 
     def filter(self, gene: str):
-
-        dd =self.df.copy().T
-        dd['gene'] = dd.index
+        dd = self.df.copy().T
+        dd["gene"] = dd.index
         dd = dd.query('gene == @gene | gene == "category"')
-        del dd['gene']
-        dd = dd.set_index('ID')
-        dd=dd.T
-        df3 = dd.melt(value_vars=list(dd.columns)[:-1], id_vars='ID', var_name='gene', value_name='abun')
-        return ProtData(df3, self.df_FDR)
+        del dd["gene"]
+        dd = dd.set_index("ID")
+        dd = dd.T
+        df3 = dd.melt(
+            value_vars=list(dd.columns)[:-1],
+            id_vars="ID",
+            var_name="gene",
+            value_name="abun",
+        )
+        return PhosphoProtData(df3, self.df_FDR)
 
 
 @dataclass(slots=True, frozen=True)
@@ -109,10 +112,10 @@ class RNASeqData:
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
 
     def filter(self, comparisons: list[str] = None):
-        filtered_data: pd.DataFrame = self.df.query("comparison in @comparisons")
-        return RNASeqData(filtered_data, self.df_FDR, self.processed_dfs)
+        df = self.df.copy(deep=True)
+        filtered_data: pd.DataFrame = df.query("comparison in @comparisons")
+        return RNASeqData(filtered_data.copy(deep=True), self.df_FDR.copy(deep=True), self.processed_dfs)
 
-   
     @property
     def comparisons(self):
         return set(self.df.comparison)
@@ -167,7 +170,7 @@ def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
 
     DEGs = path / "DEGs"
     for csv in DEGs.glob("*"):
-        #name = str(csv.name).strip().split("_")[0]
+        # name = str(csv.name).strip().split("_")[0]
         data_dict[csv.stem] = read_individual(csv)
     if not data_dict:
         raise FileNotFoundError(f"No DEG data found for {self.path}")
@@ -189,19 +192,25 @@ def read_CPM(path: Path) -> pd.DataFrame:
         raise FileNotFoundError()
 
 
+# def merge_FDR(fdrs):
+#     fdrs2 = [df[["gene_id", f"{name}_FDR"]] for name, df in fdrs.items()]
+#     final_df = reduce(
+#         lambda left, right: pd.merge(left, right, on=["gene_id"], how="outer"), fdrs2
+#     )
+#     final_df.columns = ["gene_id"] + list(fdrs.keys())
+#     return final_df
+
+
 def merge_FDR(fdrs):
-    fdrs2 = [df[["gene_id", f"{name}_FDR"]] for name, df in fdrs.items()]
-    final_df = reduce(
-        lambda left, right: pd.merge(left, right, on=["gene_id"], how="outer"), fdrs2
-    )
-    final_df.columns = ["gene_id"] + list(fdrs.keys())
-    return final_df
+    genes = list(fdrs.values())[0]["gene_id"]
+    return pd.concat([genes] + [df[f"{name}_FDR"] for name, df in fdrs.items()], axis=1)
 
 
 def load_RNAseq_data(path: Path) -> RNASeqData:
     CPM = read_CPM(path)
     FDR = load_processed_rna_files(path)
     merged_FDRs = merge_FDR(FDR)
+    #merged_FDRs = list(FDR.values())[0]
     CPM.to_csv("~/Downloads/CPM3333.csv")
     merged_FDRs.to_csv("~/Downloads/FDR44444.csv")
     return RNASeqData(CPM, merged_FDRs, FDR)
@@ -269,21 +278,22 @@ def add_categories(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     return df.T
 
 
-def read_excel(path: Path) -> ProtData:
+def read_excel(path: Path) -> Data:
     # load the data
     files = [fin for fin in list(path.glob("*xlsx")) if not rubbish(fin.name)]
     assert len(files) == 1
     return pd.read_excel(files[0])
 
-def split_dfs(df):
 
-    df = df.copy().T
+def split_dfs(df):
+    df = df.copy(deep=True).T
     df_FDR = df.query('category == "P_value"')
     df = df.query('category != "P_value"')
 
     return df, df_FDR
 
-def load_prot_data(path: Path) -> pd.DataFrame:
+
+def load_prot_data(path: Path) -> ProtData:
     df = read_excel(path)
     pipe = [
         make_gene_col,
@@ -317,7 +327,7 @@ def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_phospho_data(path: Path) -> ProtData:
+def load_phospho_data(path: Path) -> PhosphoProtData:
     df = read_excel(path)
     pipe = [
         make_gene_col,
@@ -336,3 +346,5 @@ def load_phospho_data(path: Path) -> ProtData:
 # load_phospho_data(
 #     Path("/Users/liam/code/omics_dashboard/data/phosphoproteomics/ET1-His")
 # )
+
+# load_RNAseq_data(Path('/Users/liam/code/omics_dashboard/data/rna_bulk/Reid_unpub_Cytokine_Storm_vs_BETi'))
