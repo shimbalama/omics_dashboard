@@ -118,22 +118,37 @@ def add_FDR_brackets(
     return fig
 
 
-def draw_box_chart(gene: str, data: Data, div_id: str = ids.BOX_CHART, x: str ="comparison") -> html.Div:
+def rubbish(name: str) -> bool:
+    return name.startswith((".", "~"))
+
+
+def draw_box_chart(
+    gene: str, data: Data, div_id: str = ids.BOX_CHART, x: str = "comparison", colour =None, log= False
+) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     comparison and overlays the respective FDR value"""
     # rna_seq_data: RNASeqData = data[BULK][dataset_choice]
 
-    fig = px.box(
+    # fig = px.box(df3, y="abun", x="prot_loc", color="sample", log_y=True, points="all",
+    #       hover_data=df3.columns)
+    try:
+        fig = px.box(
         data.df,
         x=x,
         y=gene,
         points="all",
         width=999,
         height=666,
+        color=colour,
+        log_y=log,
         title=f"Boxplot for {gene} CPMs",
         labels={"comparison": "Comparison type", gene: "CPM"},
         facet_row_spacing=0.75,
+        hover_data=data.df.columns,
     )
+    except Exception as e:
+        print(data.df.head(), gene, e)
+    
 
     # unique_comparisons = rna_seq_data.raw_df.comparison.unique()
     # y_range = get_y_range(len(unique_comparisons))

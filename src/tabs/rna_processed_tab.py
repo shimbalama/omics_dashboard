@@ -60,6 +60,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
     first_experiment = experiments[0]
     default_comparison = list(data[BULK][first_experiment].processed_dfs.keys())[0]
     default_df = data[BULK][first_experiment].processed_dfs[default_comparison]
+    #print(111122223333,experiments,first_experiment,default_comparison,default_df)
     return html.Div(
         children=[
             html.P(

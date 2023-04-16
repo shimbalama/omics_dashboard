@@ -1,6 +1,13 @@
 from dash import Dash, html, dcc
 
-from ..tabs import prot_tab1, rna_raw_tab, rna_processed_tab, text_tab1, text_tab2
+from ..tabs import (
+    prot_tab1,
+    rna_raw_tab,
+    rna_processed_tab,
+    text_tab1,
+    text_tab2,
+    phos_tab1,
+)
 
 
 def tab_layout(name, subtabs_id, *args):
@@ -64,7 +71,11 @@ def create_layout(app: Dash, data) -> html.Div:
                             "subtabs_id3",
                             sub_tab_layout(app, data, "Proteins", prot_tab1),
                         ),
-                        tab_layout("Phosphoproteomics", "subtabs_id4"),
+                        tab_layout(
+                            "Phosphoproteomics",
+                            "subtabs_id4",
+                            sub_tab_layout(app, data, "Phosphoproteomics", phos_tab1),
+                        ),
                         tab_layout("Function", "subtabs_id5"),
                     ],
                 )

@@ -4,6 +4,7 @@ from dash_bootstrap_components.themes import BOOTSTRAP
 from src.read_files import load_RNAseq_data, load_phospho_data, load_prot_data
 from src.components.layout import create_layout
 from pathlib import Path
+from src.helpers import rubbish
 
 # from src.parse_data.phosphoprot import load_phospho_data, load_prot_data
 
@@ -15,10 +16,6 @@ READERS = {
     "phosphoproteomics": load_phospho_data,
     "proteomics": load_prot_data,
 }
-
-
-def rubbish(name: str) -> bool:
-    return name.startswith((".", "~"))
 
 
 def read_all(path: Path):
