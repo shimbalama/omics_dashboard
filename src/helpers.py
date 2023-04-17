@@ -3,8 +3,9 @@ import numpy as np
 import pandas as pd
 from dash import dcc, html
 import plotly.express as px
-from src.read_files import RNASeqData, Data
+from src.read_files import Data
 from .components import ids
+from dash.dependencies import Input, Output
 
 
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
@@ -123,7 +124,12 @@ def rubbish(name: str) -> bool:
 
 
 def draw_box_chart(
-    gene: str, data: Data, div_id: str = ids.BOX_CHART, x: str = "comparison", colour =None, log= False
+    gene: str,
+    data: Data,
+    div_id: str = ids.BOX_CHART,
+    x: str = "comparison",
+    colour=None,
+    log=False,
 ) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     comparison and overlays the respective FDR value"""
@@ -142,9 +148,9 @@ def draw_box_chart(
         log_y=log,
         title=f"Boxplot for {gene} CPMs",
         labels={"comparison": "Comparison type", gene: "CPM"},
-        facet_row_spacing=0.75
+        facet_row_spacing=0.75,
     )
-    #hover_data=data.df.columns,- causes MANY issues with prot data
+    # hover_data=data.df.columns,- causes MANY issues with prot data
 
     # unique_comparisons = data.df.comparison.unique()
     # y_range = get_y_range(len(unique_comparisons))
@@ -180,3 +186,18 @@ def draw_box_chart(
     #     fig = add_FDR_brackets(fig, FDR, i, [i, cytokine_storm], y_range)
 
     return html.Div(dcc.Graph(figure=fig), id=div_id)
+
+
+def gene_dropdown(app, cb_out: str, cb_in: str, data: Data):
+    @app.callback(Output(cb_out, "options"), Input(cb_in, "value"))
+    def set_gene_options(experiment: str) -> list[dict[str, str]]:
+        """Populates the gene selection dropdown with options from teh given dataset"""
+        return make_list_of_dicts(list(data[experiment].df.columns))
+
+def gene_dropdown_default(app, cb_id: str):
+    @app.callback(
+        Output(cb_id, "value"), Input(cb_id, "options")
+    )
+    def select_gene_value(gene_options: list[dict[str, str]]) -> str:
+        """Select first gene as default value"""
+        return gene_options[0]["value"]

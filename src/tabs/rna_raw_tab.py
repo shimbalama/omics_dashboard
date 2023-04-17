@@ -4,6 +4,8 @@ from src.read_files import RNASeqData
 from src.helpers import (
     make_list_of_dicts,
     draw_box_chart,
+    gene_dropdown,
+    gene_dropdown_default
 )
 from ..components import ids
 
@@ -12,12 +14,8 @@ KEY = "rna_bulk"
 def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
     # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
 
-    @app.callback(
-        Output(ids.GENE_DROPDOWN, "options"), Input(ids.RAW_RNA_DATA_DROP, "value")
-    )
-    def set_gene_options(experiment: str) -> list[dict[str, str]]:
-        """Populates the gene selection dropdown with options from teh given dataset"""
-        return make_list_of_dicts(list(data[KEY][experiment].df.columns))
+
+    gene_dropdown(app, ids.GENE_DROPDOWN, ids.RAW_RNA_DATA_DROP, data[KEY])
 
     @app.callback(
         Output(ids.COMPARISON_DROPDOWN, "options"),
@@ -27,12 +25,7 @@ def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
         """Populates the comparison selection dropdown with options from teh given dataset"""
         return make_list_of_dicts(list(data[KEY][experiment].comparisons))
 
-    @app.callback(
-        Output(ids.GENE_DROPDOWN, "value"), Input(ids.GENE_DROPDOWN, "options")
-    )
-    def select_gene_value(gene_options: list[dict[str, str]]) -> str:
-        """Select first gene as default value"""
-        return gene_options[0]["value"]
+    gene_dropdown_default(app, ids.GENE_DROPDOWN)
 
     @app.callback(
         Output(ids.COMPARISON_DROPDOWN, "value"),
