@@ -51,20 +51,20 @@ def create_layout(app: Dash, data) -> html.Div:
                     id="vp-tabs",
                     value="what-is",
                     children=[
-                        tab_layout(
-                            "User guide",
-                            "subtabs_id0",
-                            sub_tab_layout(app, data, "Introduction", text_tab1),
-                            sub_tab_layout(app, data, "Input files", text_tab2),
-                        ),
-                        tab_layout(
-                            "RNAseq (bulk)",
-                            "subtabs_id1",
-                            sub_tab_layout(app, data, "CPM and FDR", rna_raw_tab),
-                            sub_tab_layout(
-                                app, data, "Volcano of DEG", rna_processed_tab
-                            ),
-                        ),
+                        # tab_layout(
+                        #     "User guide",
+                        #     "subtabs_id0",
+                        #     sub_tab_layout(app, data, "Introduction", text_tab1),
+                        #     sub_tab_layout(app, data, "Input files", text_tab2),
+                        # ),
+                        # tab_layout(
+                        #     "RNAseq (bulk)",
+                        #     "subtabs_id1",
+                        #     sub_tab_layout(app, data, "CPM and FDR", rna_raw_tab),
+                        #     sub_tab_layout(
+                        #         app, data, "Volcano of DEG", rna_processed_tab
+                        #     ),
+                        # ),
                         tab_layout("RNA_single_cell", "subtabs_id2"),
                         tab_layout(
                             "Protein",

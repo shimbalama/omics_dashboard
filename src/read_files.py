@@ -41,8 +41,8 @@ class ProtData:
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
 
-    # def filter(self, gene2: str):
-    #     return ProtData(self.df, self.df_FDR)
+    def filter(self, gene2: str):
+        return ProtData(self.df, self.df_FDR)
 
 
 @dataclass(slots=True, frozen=True)

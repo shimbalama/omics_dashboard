@@ -122,14 +122,15 @@ def add_FDR_brackets(
 def rubbish(name: str) -> bool:
     return name.startswith((".", "~"))
 
-
+#     gene: str,
+#     div_id: str = ids.BOX_CHART,
+#     x: str = "comparison",
+#     colour=None,
+#     log=False,
 def draw_box_chart(
-    gene: str,
     data: Data,
-    div_id: str = ids.BOX_CHART,
-    x: str = "comparison",
-    colour=None,
-    log=False,
+    y_gene: str,
+    params: type
 ) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     comparison and overlays the respective FDR value"""
@@ -139,18 +140,23 @@ def draw_box_chart(
     #       hover_data=df3.columns)
     fig = px.box(
         data.df,
-        x=x,
-        y=gene,
+        x=params.X,
+        y=y_gene,
         points="all",
         width=999,
         height=666,
-        color=colour,
-        log_y=log,
-        title=f"Boxplot for {gene} CPMs",
-        labels={"comparison": "Comparison type", gene: "CPM"},
+        color=params.COLOUR,
+        log_y=params.LOG,
+        title=f"Boxplot for CPMs",
         facet_row_spacing=0.75,
     )
+    #labels={"comparison": "Comparison type", gene: "CPM"},
+
+
+
     # hover_data=data.df.columns,- causes MANY issues with prot data
+
+
 
     # unique_comparisons = data.df.comparison.unique()
     # y_range = get_y_range(len(unique_comparisons))
@@ -185,14 +191,14 @@ def draw_box_chart(
     #     )
     #     fig = add_FDR_brackets(fig, FDR, i, [i, cytokine_storm], y_range)
 
-    return html.Div(dcc.Graph(figure=fig), id=div_id)
+    return html.Div(dcc.Graph(figure=fig), id=params.DIV_ID)
 
 
-def gene_dropdown(app, cb_out: str, cb_in: str, data: Data):
+def gene_dropdown(app, cb_out: str, cb_in: str, data_set: Data):
     @app.callback(Output(cb_out, "options"), Input(cb_in, "value"))
     def set_gene_options(experiment: str) -> list[dict[str, str]]:
         """Populates the gene selection dropdown with options from teh given dataset"""
-        return make_list_of_dicts(list(data[experiment].df.columns))
+        return make_list_of_dicts(list(data_set[experiment].df.columns))
 
 def gene_dropdown_default(app, cb_id: str):
     @app.callback(
@@ -201,3 +207,17 @@ def gene_dropdown_default(app, cb_id: str):
     def select_gene_value(gene_options: list[dict[str, str]]) -> str:
         """Select first gene as default value"""
         return gene_options[0]["value"]
+
+def box(app, cb_in: str, cb_in2: str, data_set: Data, params: type):
+    @app.callback(
+        Output(params.DIV_ID, "children"),
+        Input(cb_in, "value"),
+        Input(cb_in2, "value")
+    )
+    def update_box_chart(experiment: str, gene: str) -> html.Div:
+        """Re draws a box and wisker of the CPM data for each set of replicates for eact
+        comparison and overlays the respective FDR value"""
+        selected_data = data_set[experiment]
+        filtered: Data = selected_data.filter(gene)####damn, this needs to be abun for phospho... not gene
+
+        return draw_box_chart(filtered, gene, params)

@@ -16,6 +16,7 @@ def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
 
 
     gene_dropdown(app, ids.GENE_DROPDOWN, ids.RAW_RNA_DATA_DROP, data[KEY])
+    gene_dropdown_default(app, ids.GENE_DROPDOWN)
 
     @app.callback(
         Output(ids.COMPARISON_DROPDOWN, "options"),
@@ -24,8 +25,6 @@ def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
     def set_comparison_options(experiment: str) -> list[dict[str, str]]:
         """Populates the comparison selection dropdown with options from teh given dataset"""
         return make_list_of_dicts(list(data[KEY][experiment].comparisons))
-
-    gene_dropdown_default(app, ids.GENE_DROPDOWN)
 
     @app.callback(
         Output(ids.COMPARISON_DROPDOWN, "value"),
