@@ -7,6 +7,16 @@ from src.read_files import Data
 from .components import ids
 from dash.dependencies import Input, Output
 
+from dataclasses import dataclass
+
+@dataclass
+class Params:
+    '''Parameters for box plotting'''
+    DIV_ID: str
+    X: str
+    COLOUR: str | None = None
+    LOG: bool = False
+    Y: str | None = None
 
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
     """Convert a list of strs into a list where those strings are values in dicts
@@ -219,5 +229,5 @@ def box(app, cb_in: str, cb_in2: str, data_set: Data, params: type):
         comparison and overlays the respective FDR value"""
         selected_data = data_set[experiment]
         filtered: Data = selected_data.filter(gene)####damn, this needs to be abun for phospho... not gene
-
-        return draw_box_chart(filtered, gene, params)
+        y_param = params.Y if params.Y else gene
+        return draw_box_chart(filtered, y_param, params)

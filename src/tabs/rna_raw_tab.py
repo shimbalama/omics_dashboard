@@ -5,15 +5,19 @@ from src.helpers import (
     make_list_of_dicts,
     draw_box_chart,
     gene_dropdown,
-    gene_dropdown_default
+    gene_dropdown_default,
+    Params
 )
 from ..components import ids
 
 KEY = "rna_bulk"
 
+PARAMs = Params(DIV_ID=ids.BOX_CHART, X= "comparison")
+
+
+
 def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
     # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
-
 
     gene_dropdown(app, ids.GENE_DROPDOWN, ids.RAW_RNA_DATA_DROP, data[KEY])
     gene_dropdown_default(app, ids.GENE_DROPDOWN)
@@ -49,7 +53,7 @@ def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
         selected_data = data[KEY][dataset_choice]
         filtered: RNASeqData = selected_data.filter(comps)
 
-        return draw_box_chart(gene, filtered)
+        return draw_box_chart(filtered, gene, PARAMs)
 
     default = list(data[KEY].keys())
     return html.Div(
@@ -78,8 +82,9 @@ def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
             ),
             html.Div(
                 draw_box_chart(
-                    data[KEY][default[0]].df.columns[0],
                     data[KEY][default[0]],
+                    data[KEY][default[0]].df.columns[0],
+                    PARAMs,
                 )
             ),
         ],

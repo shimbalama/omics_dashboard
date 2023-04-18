@@ -1,18 +1,19 @@
 from dash import Dash, dcc, html
 from ..components import ids
 from src.read_files import ProtData, Data
-from src.helpers import draw_box_chart, gene_dropdown, gene_dropdown_default, box
+from src.helpers import (
+    draw_box_chart,
+    gene_dropdown,
+    gene_dropdown_default,
+    box,
+    Params,
+)
 
 
 KEY = "phosphoproteomics"
 
-class BoxParams:
-    DIV_ID = "phosphoiddd222"
-    X = "gene"
-    COLOUR = 'ID'
-    LOG = True
+PARAMs = Params(DIV_ID="phosphoiddd222", X="gene", COLOUR="ID", LOG=True, Y="abun")
 
-#Y = "abun"
 
 def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
     # get comparisons
@@ -25,7 +26,7 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
         "phosphoproteomics_dataset_drop",
         "phosphoproteomics_gene_drop",
         data[KEY],
-        BoxParams
+        PARAMs,
     )
     default = list(data[KEY].keys())
     default_data = data[KEY][default[0]].filter("AAK1")
@@ -43,12 +44,9 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
             dcc.Dropdown(
                 id="phosphoproteomics_gene_drop",
             ),
-            html.Div(
-                draw_box_chart(
-                    default_data, "abun", BoxParams
-                )
-            ),
+            html.Div(draw_box_chart(default_data, "abun", PARAMs)),
         ],
     )
 
-#, default_data,"abun", "phosphoiddd222", "gene", "ID", True
+
+# , default_data,"abun", "phosphoiddd222", "gene", "ID", True

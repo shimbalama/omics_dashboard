@@ -2,6 +2,9 @@ from pathlib import Path
 from dataclasses import dataclass, field
 import pandas as pd
 from typing import Protocol
+import polars as pl
+
+import numpy as np
 
 # from .helpers import rubbish
 from functools import partial, reduce
@@ -113,12 +116,17 @@ class RNASeqData:
 
     def filter(self, comparisons: list[str] = None):
         df = self.df.copy(deep=True)
+        print(99999, comparisons)
         filtered_data: pd.DataFrame = df.query("comparison in @comparisons")
-        return RNASeqData(filtered_data.copy(deep=True), self.df_FDR.copy(deep=True), self.processed_dfs)
+        return RNASeqData(
+            filtered_data.copy(deep=True),
+            self.df_FDR.copy(deep=True),
+            self.processed_dfs,
+        )
 
     @property
     def comparisons(self):
-        return set(self.df.comparison)
+        return set(self.df["comparison"])
 
     @property
     def degs(self):
@@ -153,7 +161,9 @@ def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
             delimitor = "\t"
         else:
             raise ValueError("delimitor unknown!")
-        df = pd.read_csv(csv, sep=delimitor)
+        df = pl.read_csv(csv, separator=delimitor).to_pandas(
+            use_pyarrow_extension_array=True
+        )
         df.columns = [
             "gene_id",
             "gene_symbol",
@@ -182,7 +192,11 @@ def read_CPM(path: Path) -> pd.DataFrame:
     fin = list(path.glob("*.csv"))
     if fin:
         fin = fin.pop()
-        df = pd.read_csv(fin, index_col=0).T.iloc[3:]
+        df = pl.read_csv(str(fin)).to_pandas(use_pyarrow_extension_array=True)
+        df = df.replace("NA", np.NaN)
+        df["index"] = df.gene_symbol.fillna(df.gene_id)
+        df = df.set_index("index")
+        df = df.T.iloc[3:]
         names: list[str] = list(df.index)
         df["comparison"] = [name.split("_")[0] for name in names]
         df["point_of_ref"] = ["yes" if "_POR_" in name else "no" for name in names]
@@ -210,7 +224,6 @@ def load_RNAseq_data(path: Path) -> RNASeqData:
     CPM = read_CPM(path)
     FDR = load_processed_rna_files(path)
     merged_FDRs = merge_FDR(FDR)
-    #merged_FDRs = list(FDR.values())[0]
     CPM.to_csv("~/Downloads/CPM3333.csv")
     merged_FDRs.to_csv("~/Downloads/FDR44444.csv")
     return RNASeqData(CPM, merged_FDRs, FDR)
