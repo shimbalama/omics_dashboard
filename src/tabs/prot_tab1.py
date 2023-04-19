@@ -5,7 +5,7 @@ from src.helpers import draw_box_chart, gene_dropdown, gene_dropdown_default, bo
 
 KEY = "proteomics"
 
-PARAMs = Params(DIV_ID="iddd222", X="category")
+PARAMs = Params(DIV_ID="iddd222", X="test")
 
 def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
     gene_dropdown(app, "proteomics_gene_drop", "proteomics_dataset_drop", data[KEY])
@@ -31,4 +31,4 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
     )
 
 
-# draw_box_chart("TTN", data[KEY][default[0]], "iddd222", "category")
+# draw_box_chart("TTN", data[KEY][default[0]], "iddd222", "test")

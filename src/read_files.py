@@ -19,6 +19,9 @@ class Data(Protocol):
     def filter():
         ...
 
+    def point_of_reference():
+        ...
+
 
 @dataclass(slots=True, frozen=True)
 class ProtData:
@@ -46,6 +49,10 @@ class ProtData:
 
     def filter(self, gene2: str):
         return ProtData(self.df, self.df_FDR)
+
+    @property
+    def point_of_reference(self):
+        return "CTRL"
 
 
 @dataclass(slots=True, frozen=True)
@@ -75,7 +82,7 @@ class PhosphoProtData:
     def filter(self, gene: str):
         dd = self.df.copy().T
         dd["gene"] = dd.index
-        dd = dd.query('gene == @gene | gene == "category"')
+        dd = dd.query('gene == @gene | gene == "test"')
         del dd["gene"]
         dd = dd.set_index("ID")
         dd = dd.T
@@ -86,6 +93,10 @@ class PhosphoProtData:
             value_name="abun",
         )
         return PhosphoProtData(df3, self.df_FDR)
+
+    @property
+    def point_of_reference(self):
+        return "CTRL"
 
 
 @dataclass(slots=True, frozen=True)
@@ -116,17 +127,18 @@ class RNASeqData:
 
     def filter(self, comparisons: list[str] = None):
         df = self.df.copy(deep=True)
-        print(99999, comparisons)
-        filtered_data: pd.DataFrame = df.query("comparison in @comparisons")
+        filtered_data: pd.DataFrame = df.query("test in @comparisons")
         return RNASeqData(
             filtered_data.copy(deep=True),
             self.df_FDR.copy(deep=True),
             self.processed_dfs,
         )
 
+    # TODO - post init to check that indexes are equal. found examples of missign and duplicates gene names
+
     @property
     def comparisons(self):
-        return set(self.df["comparison"])
+        return set(self.df["test"])
 
     @property
     def degs(self):
@@ -137,7 +149,7 @@ class RNASeqData:
         """frgrg"""
 
         ref_df = self.df.query('point_of_ref == "yes"')
-        point_of_ref = set(ref_df.comparison)
+        point_of_ref = set(ref_df["test"])
         if len(point_of_ref) == 1:
             return point_of_ref.pop()
         elif len(point_of_ref) > 1:
@@ -147,7 +159,20 @@ class RNASeqData:
 
     @property
     def mean_count(self) -> pd.DataFrame:
-        return self.df.groupby("comparison").agg("mean")
+        return self.df.groupby("test").agg("mean")
+
+
+def make_index(df):
+    df.gene_symbol = df.gene_symbol.replace("NA", np.NaN)
+    df.gene_symbol = df["gene_symbol"].mask(
+        df["gene_symbol"].duplicated(keep=False), other=np.NaN
+    )
+    df["index2"] = df.gene_symbol.fillna(df.gene_id)
+    df = df.set_index("index2")
+    idx = df.index
+    if any(idx.duplicated()):
+        print("log.warn!", "dupppssss!!!!", df[idx.duplicated()])
+    return df
 
 
 def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
@@ -172,15 +197,13 @@ def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
             "logCPM",
             "F",
             "P",
-            f"{csv.stem}_FDR",
+            csv.stem,
         ]
-
-        df = df.reset_index(drop=True)
+        df = make_index(df)
         return df
 
     DEGs = path / "DEGs"
     for csv in DEGs.glob("*"):
-        # name = str(csv.name).strip().split("_")[0]
         data_dict[csv.stem] = read_individual(csv)
     if not data_dict:
         raise FileNotFoundError(f"No DEG data found for {self.path}")
@@ -188,17 +211,14 @@ def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
 
 
 def read_CPM(path: Path) -> pd.DataFrame:
-    # df = pd.read_csv(, index_col=1)
     fin = list(path.glob("*.csv"))
     if fin:
         fin = fin.pop()
         df = pl.read_csv(str(fin)).to_pandas(use_pyarrow_extension_array=True)
-        df = df.replace("NA", np.NaN)
-        df["index"] = df.gene_symbol.fillna(df.gene_id)
-        df = df.set_index("index")
+        df = make_index(df)
         df = df.T.iloc[3:]
         names: list[str] = list(df.index)
-        df["comparison"] = [name.split("_")[0] for name in names]
+        df["test"] = [name.split("_")[0] for name in names]
         df["point_of_ref"] = ["yes" if "_POR_" in name else "no" for name in names]
         return df
     else:
@@ -216,8 +236,13 @@ def read_CPM(path: Path) -> pd.DataFrame:
 
 
 def merge_FDR(fdrs):
-    genes = list(fdrs.values())[0]["gene_id"]
-    return pd.concat([genes] + [df[f"{name}_FDR"] for name, df in fdrs.items()], axis=1)
+    #genes = list(fdrs.values())[0]["gene_id"]
+
+    df = pd.concat([df[name] for name, df in fdrs.items()], axis=1).T
+    df['test'] = df.index
+    print(666666666, df.head())
+    
+    return df
 
 
 def load_RNAseq_data(path: Path) -> RNASeqData:
@@ -226,13 +251,13 @@ def load_RNAseq_data(path: Path) -> RNASeqData:
     merged_FDRs = merge_FDR(FDR)
     CPM.to_csv("~/Downloads/CPM3333.csv")
     merged_FDRs.to_csv("~/Downloads/FDR44444.csv")
-    return RNASeqData(CPM, merged_FDRs, FDR)
+    return RNASeqData(CPM.query('test != "description"'), merged_FDRs, FDR)
 
 
 class SchemaProt:
     COMBINED_PROT_DESCRIPTION = "Description"
     GENE = "gene"
-    CAT = "category"
+    CAT = "test"
 
 
 class SchemaPhos:
@@ -241,7 +266,7 @@ class SchemaPhos:
     MOD_IN_PROT = "Modifications in Proteins"
     COMBINED_PROT_DESCRIPTION = "Master Protein Descriptions"
     GENE = "gene"
-    CAT = "category"
+    CAT = "test"
 
 
 Preprocessor = Callable[[type, pd.DataFrame], pd.DataFrame]
@@ -274,7 +299,11 @@ def remove_unwanted_cols(
         for col in list(df.columns)
         if col.startswith(("Abundance: F", "Abundance Ratio Adj. P-Value:"))
     ]
-    return df[misc + abundances]
+    df = df[misc + abundances]
+    # df.columns = [col.strip() for col in df.columns]
+    # df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    # print(333333333333, list(df.columns)[:4], list(df.index)[:4])
+    return df
 
 
 def add_categories(schema: type, df: pd.DataFrame) -> pd.DataFrame:
@@ -283,7 +312,7 @@ def add_categories(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     index_str = "index_str"
     df[index_str] = df.index
     df[schema.CAT] = df[index_str].apply(
-        lambda x: "P_value" if "P-Value:" in x else str(x).split(",")[-1]
+        lambda x: "P_value" if "P-Value:" in x else str(x).split(",")[-1].strip()
     )
     df[schema.CAT] = df[schema.CAT].astype("category")
     del df[index_str]
@@ -296,12 +325,21 @@ def read_excel(path: Path) -> Data:
     files = [fin for fin in list(path.glob("*xlsx")) if not rubbish(fin.name)]
     assert len(files) == 1
     return pd.read_excel(files[0])
+    # pls caused too many dramas ie The current offset in the file is 3909947 bytes.
+    # can't handle values like 0.001000
 
 
 def split_dfs(df):
     df = df.copy(deep=True).T
-    df_FDR = df.query('category == "P_value"')
-    df = df.query('category != "P_value"')
+    df_FDR = df.query('test == "P_value"')
+    df_FDR["index_cpy"] = df_FDR.index
+    df_FDR["test"] = df_FDR.index_cpy.apply(
+        lambda x: x.strip()
+        .split(") /")[0]
+        .replace("Abundance Ratio Adj. P-Value: (", "")
+    )
+    del df_FDR["index_cpy"]
+    df = df.query('test != "P_value"')
 
     return df, df_FDR
 

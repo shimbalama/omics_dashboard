@@ -9,14 +9,17 @@ from dash.dependencies import Input, Output
 
 from dataclasses import dataclass
 
+
 @dataclass
 class Params:
-    '''Parameters for box plotting'''
+    """Parameters for box plotting"""
+
     DIV_ID: str
     X: str
     COLOUR: str | None = None
     LOG: bool = False
     Y: str | None = None
+
 
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
     """Convert a list of strs into a list where those strings are values in dicts
@@ -24,7 +27,7 @@ def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
     return [{"label": val, "value": val} for val in values]
 
 
-def get_y_range(number_of_comparisons, interline=0.03):
+def get_y_range(number_of_comparisons, interline=0.02):
     # Specify in what y_range to plot for each pair of columns
     y_range = np.zeros([number_of_comparisons, 2])
     for i in range(number_of_comparisons):
@@ -35,14 +38,14 @@ def get_y_range(number_of_comparisons, interline=0.03):
 def add_FDR_brackets(
     fig, FDR, i, column_pair, y_range, text_height=1.01, color="black"
 ):
-    """Adds notations giving the significance level between two box plot data (t-test two-sided comparison)
+    """Adds notations giving the significance level between two box plot data (t-test two-sided test)
 
     Parameters:
     ----------
     fig: figure
         Plotly boxplot figure.
     FDR: float
-        False Discovery Rate (FDR) value for the comparison.
+        False Discovery Rate (FDR) value for the test.
     i: int
         Index of the y_range to use for the box plot data.
     column_pair: list
@@ -132,74 +135,67 @@ def add_FDR_brackets(
 def rubbish(name: str) -> bool:
     return name.startswith((".", "~"))
 
-#     gene: str,
-#     div_id: str = ids.BOX_CHART,
-#     x: str = "comparison",
-#     colour=None,
-#     log=False,
-def draw_box_chart(
-    data: Data,
-    y_gene: str,
-    params: type
-) -> html.Div:
-    """Draws a box and wisker of the CPM data for each set of replicates for eact
-    comparison and overlays the respective FDR value"""
-    # rna_seq_data: RNASeqData = data[BULK][dataset_choice]
 
-    # fig = px.box(df3, y="abun", x="prot_loc", color="sample", log_y=True, points="all",
-    #       hover_data=df3.columns)
+def draw_box_chart(data: Data, y_gene: str, params: type) -> html.Div:
+    """Draws a box and wisker of the CPM data for each set of replicates for eact
+    test and overlays the respective FDR value"""
+
     fig = px.box(
         data.df,
         x=params.X,
         y=y_gene,
         points="all",
-        width=999,
-        height=666,
+        width=1500,
+        height=1000,
         color=params.COLOUR,
         log_y=params.LOG,
         title=f"Boxplot for CPMs",
+        labels={y_gene: "CPM"},
         facet_row_spacing=0.75,
     )
-    #labels={"comparison": "Comparison type", gene: "CPM"},
-
-
-
     # hover_data=data.df.columns,- causes MANY issues with prot data
+    if "test" in data.df.columns:  # ie not phoso
+        print(1111, data.df.columns)
+        unique_comparisons = data.df["test"].unique()
+        y_range = get_y_range(len(unique_comparisons))
+        print(1212121212, data.point_of_reference, unique_comparisons)
+        if data.point_of_reference in unique_comparisons:
+            print(2222222)
+            point_of_reference_index = [
+                i
+                for i, test in enumerate(unique_comparisons)
+                if test == data.point_of_reference
+            ]
+            assert len(point_of_reference_index) == 1
 
-
-
-    # unique_comparisons = data.df.comparison.unique()
-    # y_range = get_y_range(len(unique_comparisons))
-    # cytokine_storm = "None"
-    # cytokine_storm_FDR = 0.0  # fix this shit...
-    # for i, comp in enumerate(unique_comparisons):
-    #     if comp == data.point_of_reference:
-    #         cytokine_storm = i
-    #         DEG_df: pd.DataFrame | None = data.processed_dfs.get(comp)
-    #         if DEG_df is not None:
-    #             cytokine_storm_FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
-    #         break
-    # for i, comp in enumerate(unique_comparisons):
-    #     if cytokine_storm == "None":
-    #         break  # if removed can't plot
-    #     if i == cytokine_storm:
-    #         continue
-    #     DEG_df: pd.DataFrame | None = data.processed_dfs.get(comp)
-    #     if DEG_df is not None:
-    #         FDR = float(DEG_df.query("gene_id == @gene").FDR.iloc[0])
-    #     else:
-    #         FDR = cytokine_storm_FDR
-    #         if "CTRL" not in comp.upper():
-    #             print(f"log.warn: CTRL not in comp : {comp}")
-    #     y = data.df.query("comparison == @comp")[gene].median()
-    #     fig.add_annotation(
-    #         x=comp,
-    #         y=y,
-    #         text=f"{FDR:.1e}",
-    #         yshift=10,
-    #         showarrow=False,
-    #     )
-    #     fig = add_FDR_brackets(fig, FDR, i, [i, cytokine_storm], y_range)
+            for i, test in enumerate(unique_comparisons):
+                print(11111111111, i, test, y_gene, data.point_of_reference)
+                if test == data.point_of_reference:
+                    assert i == point_of_reference_index[0]
+                    continue
+                FDR: pd.Series = data.df_FDR.query('test == @test')[y_gene]
+                if FDR.empty:
+                    print(98788766)#wtf???
+                    continue
+                FDR = list(FDR)[0]
+                # for comp in data.df_FDR.columns:
+                #     if test.upper() == comp.upper():
+                #         counter += 1
+                #         d = data.df_FDR[comp].to_dict()
+                print(555555,f'fdr:{FDR}', f'test:{test}', unique_comparisons, data.df_FDR.query('test == @test').head(), sep='\n')
+                #FDR = d.get(y_gene, 0.12345)
+                y = data.df.query("test == @test")[y_gene].median()
+                fig.add_annotation(
+                    x=test,
+                    y=y,
+                    text=f"{FDR:.1e}",
+                    yshift=10,
+                    showarrow=False,
+                )
+                print(i, test, y, FDR)
+                fig = add_FDR_brackets(
+                    fig, FDR, i, [i, point_of_reference_index[0]], y_range
+                )
 
     return html.Div(dcc.Graph(figure=fig), id=params.DIV_ID)
 
@@ -208,26 +204,24 @@ def gene_dropdown(app, cb_out: str, cb_in: str, data_set: Data):
     @app.callback(Output(cb_out, "options"), Input(cb_in, "value"))
     def set_gene_options(experiment: str) -> list[dict[str, str]]:
         """Populates the gene selection dropdown with options from teh given dataset"""
-        return make_list_of_dicts(list(data_set[experiment].df.columns))
+        return make_list_of_dicts(list(set(data_set[experiment].df.columns)))
+
 
 def gene_dropdown_default(app, cb_id: str):
-    @app.callback(
-        Output(cb_id, "value"), Input(cb_id, "options")
-    )
+    @app.callback(Output(cb_id, "value"), Input(cb_id, "options"))
     def select_gene_value(gene_options: list[dict[str, str]]) -> str:
         """Select first gene as default value"""
         return gene_options[0]["value"]
 
+
 def box(app, cb_in: str, cb_in2: str, data_set: Data, params: type):
     @app.callback(
-        Output(params.DIV_ID, "children"),
-        Input(cb_in, "value"),
-        Input(cb_in2, "value")
+        Output(params.DIV_ID, "children"), Input(cb_in, "value"), Input(cb_in2, "value")
     )
     def update_box_chart(experiment: str, gene: str) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
-        comparison and overlays the respective FDR value"""
+        test and overlays the respective FDR value"""
         selected_data = data_set[experiment]
-        filtered: Data = selected_data.filter(gene)####damn, this needs to be abun for phospho... not gene
+        filtered: Data = selected_data.filter(gene)
         y_param = params.Y if params.Y else gene
         return draw_box_chart(filtered, y_param, params)

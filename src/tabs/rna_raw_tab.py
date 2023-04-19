@@ -1,6 +1,6 @@
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
-from src.read_files import RNASeqData
+from src.read_files import Data
 from src.helpers import (
     make_list_of_dicts,
     draw_box_chart,
@@ -12,11 +12,11 @@ from ..components import ids
 
 KEY = "rna_bulk"
 
-PARAMs = Params(DIV_ID=ids.BOX_CHART, X= "comparison")
+PARAMs = Params(DIV_ID=ids.BOX_CHART, X= "test")
 
 
 
-def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
+def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
     # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
 
     gene_dropdown(app, ids.GENE_DROPDOWN, ids.RAW_RNA_DATA_DROP, data[KEY])
@@ -27,7 +27,7 @@ def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
         Input(ids.RAW_RNA_DATA_DROP, "value"),
     )
     def set_comparison_options(experiment: str) -> list[dict[str, str]]:
-        """Populates the comparison selection dropdown with options from teh given dataset"""
+        """Populates the test selection dropdown with options from teh given dataset"""
         return make_list_of_dicts(list(data[KEY][experiment].comparisons))
 
     @app.callback(
@@ -49,9 +49,9 @@ def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
     )
     def update_box_chart(dataset_choice: str, gene: str, comps: list[str]) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
-        comparison and overlays the respective FDR value"""
+        test and overlays the respective FDR value"""
         selected_data = data[KEY][dataset_choice]
-        filtered: RNASeqData = selected_data.filter(comps)
+        filtered: Data = selected_data.filter(comps)
 
         return draw_box_chart(filtered, gene, PARAMs)
 
@@ -69,7 +69,7 @@ def render(app: Dash, data: dict[str, dict[str, RNASeqData]]) -> html.Div:
             dcc.Dropdown(
                 id=ids.GENE_DROPDOWN,
             ),
-            html.H6("Comparison"),
+            html.H6("test"),
             dcc.Dropdown(
                 id=ids.COMPARISON_DROPDOWN,
                 multi=True,

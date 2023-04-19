@@ -6,7 +6,7 @@ from src.read_files import RNASeqData
 import pandas as pd
 from src.helpers import make_list_of_dicts
 
-BULK = 'rna_bulk'
+KEY = 'rna_bulk'
 
 
 def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
@@ -27,15 +27,15 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
     )
     def set_comparison_options(experiment: str) -> list[dict[str, str]]:
-        """Set the comparison option by given experiemnt name"""
-        return make_list_of_dicts(list(data[BULK][experiment].degs))
+        """Set the test option by given experiemnt name"""
+        return make_list_of_dicts(list(data[KEY][experiment].degs))
 
     @app.callback(
         Output(ids.PROCESSED_COMPARISON_DROPDOWN, "value"),
         Input(ids.PROCESSED_COMPARISON_DROPDOWN, "options"),
     )
     def select_gene_value(options: list[dict[str, str]]) -> str:
-        """Select first comparison as default value after changing dataset"""
+        """Select first test as default value after changing dataset"""
         return options[0]["value"]
 
     @app.callback(
@@ -52,14 +52,18 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
         datadset_id: str,
     ):
         """Update rendering of data points upon changing x-value of vertical dashed lines."""
-        selcted_data: RNASeqData = data[BULK][datadset_id]
+        selcted_data: RNASeqData = data[KEY][datadset_id]
         df: pd.DataFrame = selcted_data.processed_dfs[comp].copy()
+        df['gene_symbol'] = df.index
+        df = df.reset_index(drop=True)
         return draw_volcano(df, genomic_line, effect_lims)
 
-    experiments = list(data[BULK].keys())
+    experiments = list(data[KEY].keys())
     first_experiment = experiments[0]
-    default_comparison = list(data[BULK][first_experiment].processed_dfs.keys())[0]
-    default_df = data[BULK][first_experiment].processed_dfs[default_comparison]
+    default_comparison = list(data[KEY][first_experiment].processed_dfs.keys())[0]
+    default_df = data[KEY][first_experiment].processed_dfs[default_comparison]
+    default_df['gene_symbol'] = default_df.index
+    default_df = default_df.reset_index(drop=True)
     #print(111122223333,experiments,first_experiment,default_comparison,default_df)
     return html.Div(
         children=[
@@ -80,7 +84,7 @@ def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
                 value=first_experiment,
                 multi=False,
             ),
-            html.H6("Comparison"),
+            html.H6("test"),
             dcc.Dropdown(
                 id=ids.PROCESSED_COMPARISON_DROPDOWN,
                 multi=False,
