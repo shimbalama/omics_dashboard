@@ -28,8 +28,10 @@ def read_all(path: Path):
 
 def main() -> None:
     data_folders = [path for path in DATA_PATH.glob("*") if not rubbish(path.name)]
+    print(data_folders)
     with Pool(processes=5) as pool:
         data = dict(pool.imap_unordered(read_all, data_folders))
+    #data = dict(read_all(gg) for gg in data_folders)
     app = Dash(external_stylesheets=[BOOTSTRAP])
     app.title = "Omics dashboard"
     app.layout = create_layout(app, data)

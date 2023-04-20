@@ -124,13 +124,20 @@ class RNASeqData:
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
+    point_of_reference: str = field(init=False)
+
+    def __post_init__(self):
+        """set attribute point_of_reference"""
+
+        object.__setattr__(self, "point_of_reference", self.find_point_of_reference())
+
 
     def filter(self, comparisons: list[str] = None):
-        df = self.df.copy(deep=True)
-        filtered_data: pd.DataFrame = df.query("test in @comparisons")
+        df: pd.DataFrame = self.df.query("test in @comparisons")
+        #df = self.df[self.df['test'].isin(comparisons)]#not much noticable dif re time
         return RNASeqData(
-            filtered_data.copy(deep=True),
-            self.df_FDR.copy(deep=True),
+            df,
+            self.df_FDR,
             self.processed_dfs,
         )
 
@@ -144,8 +151,7 @@ class RNASeqData:
     def degs(self):
         return set(self.processed_dfs.keys())
 
-    @property
-    def point_of_reference(self):
+    def find_point_of_reference(self):
         """frgrg"""
 
         ref_df = self.df.query('point_of_ref == "yes"')
@@ -240,18 +246,19 @@ def merge_FDR(fdrs):
 
     df = pd.concat([df[name] for name, df in fdrs.items()], axis=1).T
     df['test'] = df.index
-    print(666666666, df.head())
     
     return df
 
 
 def load_RNAseq_data(path: Path) -> RNASeqData:
     CPM = read_CPM(path)
+    CPM = CPM.query('test != "description"')
+    CPM = CPM.astype({col: "Float32" for col in CPM.columns[:-2]})
     FDR = load_processed_rna_files(path)
     merged_FDRs = merge_FDR(FDR)
-    CPM.to_csv("~/Downloads/CPM3333.csv")
-    merged_FDRs.to_csv("~/Downloads/FDR44444.csv")
-    return RNASeqData(CPM.query('test != "description"'), merged_FDRs, FDR)
+    #CPM.to_csv("~/Downloads/CPM3333.csv")
+    #merged_FDRs.to_csv("~/Downloads/FDR44444.csv")
+    return RNASeqData(CPM, merged_FDRs, FDR)
 
 
 class SchemaProt:
@@ -330,7 +337,7 @@ def read_excel(path: Path) -> Data:
 
 
 def split_dfs(df):
-    df = df.copy(deep=True).T
+    df = df.T
     df_FDR = df.query('test == "P_value"')
     df_FDR["index_cpy"] = df_FDR.index
     df_FDR["test"] = df_FDR.index_cpy.apply(
@@ -353,8 +360,10 @@ def load_prot_data(path: Path) -> ProtData:
     ]
     preprocessor = compose(SchemaProt, *pipe)
     df = preprocessor(df)
+    # if 'QC' in list(df.columns):
+    #     del df['QC']
     df, df_FDR = split_dfs(df)
-    df.to_csv("~/Downloads/prot2222.csv")
+    #df.to_csv("~/Downloads/prot2222.csv")
     return ProtData(df, df_FDR)
 
 
@@ -389,7 +398,7 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     preprocessor = compose(SchemaPhos, *pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    df.to_csv("~/Downloads/phos111.csv")
+    #df.to_csv("~/Downloads/phos111.csv")
     return PhosphoProtData(df, df_FDR)
 
 
