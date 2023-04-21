@@ -24,7 +24,7 @@ class Params:
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
     """Convert a list of strs into a list where those strings are values in dicts
     against keys label and value, for use in callbacks"""
-    return [{"label": val, "value": val} for val in sorted(values)]
+    return [{"label": val, "value": val} for val in sorted(set(values))]
 
 
 def get_y_range(number_of_comparisons, interline=0.03):
@@ -139,9 +139,9 @@ def rubbish(name: str) -> bool:
 def draw_box_chart(data: Data, y_gene: str, params: type) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     test and overlays the respective FDR value"""
-
+    df = data.pandas_df
     fig = px.box(
-        data.df,
+        df,
         x=params.X,
         y=y_gene,
         points="all",
@@ -153,107 +153,38 @@ def draw_box_chart(data: Data, y_gene: str, params: type) -> html.Div:
         labels={y_gene: "CPM"},
         facet_row_spacing=0.75,
     )
-    #s = time()
-
-    FDRs = data.df_FDR[y_gene].to_dict()
-    #print(f"time1:{s-time()}")
-    # Get the unique values of the 'test' column
-    tests = np.unique(data.df["test"])
-
-    # Initialize a dictionary to store the medians
-    CPMs = {
-        test: np.median(data.df.loc[data.df["test"] == test, y_gene]) for test in tests
-    }
-
-    
-    #CPMs = data.df[["test", y_gene]].groupby("test").agg("median").to_dict()
-    #print(f"time2:{s-time()}")
-    # print(1111, data.df.columns)
-    unique_comparisons = data.df["test"].unique()
-    #print(f"time3:{s-time()}")
-    y_range = get_y_range(len(unique_comparisons))
-    #print(f"time4:{s-time()}")
-    # print(1212121212, data.point_of_reference, unique_comparisons)
-    if data.point_of_reference in unique_comparisons:
-        #print(f"time5:{s-time()}")
-        # print(2222222)
-        point_of_reference_index = [
-            i
-            for i, test in enumerate(unique_comparisons)
-            if test == data.point_of_reference
-        ]
-        #print(f"time6:{s-time()}")
-        assert len(point_of_reference_index) == 1
-        #print(f"time7:{s-time()}")
-        for i, test in enumerate(unique_comparisons):
-            #print(f"time8:{s-time()}")
-            # print(11111111111, i, test, y_gene, data.point_of_reference)
-            if test == data.point_of_reference:
-                assert i == point_of_reference_index[0]
-                continue
-            #print(f"time9:{s-time()}")
-            FDR = FDRs.get(test, 0.0)
-            #print(f"time10:{s-time()}")
-            y = CPMs[test]
-            #print(f"time11:{s-time()}")
-            fig.add_annotation(
-                x=test,
-                y=y,
-                text=f"{FDR:.1e}",
-                yshift=10,
-                showarrow=False,
-            )
-            #print(f"time12:{s-time()}")
-            # print(i, test, y, FDR)
-            fig = add_FDR_brackets(
-                fig, FDR, i, [i, point_of_reference_index[0]], y_range
-            )
-            #print(f"time13:{s-time()}")
-        fig.update_layout(margin=dict(t=i * 33))
-    # if "test" in set(data.df.columns):
-    #     unique_comparisons = data.df["test"].unique()
-    #     y_range = get_y_range(len(unique_comparisons))
-    #     if data.point_of_reference in unique_comparisons:
-    #         point_of_reference_index = list(unique_comparisons).index(
-    #             data.point_of_reference
-    #         )
-
-    #         # Compute FDR and median for all tests at once using vectorized operations
-    #         FDR_values = data.df_FDR.loc[
-    #             data.df_FDR["test"].isin(unique_comparisons), y_gene
-    #         ]
-    #         print(FDR_values)
-    #         median_values = (
-    #             data.df.loc[data.df["test"].isin(unique_comparisons)]
-    #             .groupby("test")[y_gene]
-    #             .median()
-    #         )
-
-    #         for i, test in enumerate(unique_comparisons):
-    #             if test == data.point_of_reference:
-    #                 continue
-
-    #             # Get the FDR and median values for this test from the precomputed arrays
-    #             if FDR_values.empty:
-    #                 print(98788766)  # wtf???
-    #                 continue
-    #             FDR = FDR_values.loc[data.df_FDR["test"] == test].values[0]
-    #             y = median_values.loc[test]
-
-    #             # Add the annotation and FDR bracket to the plot
-    #             fig.add_annotation(
-    #                 x=test,
-    #                 y=y,
-    #                 text=f"{FDR:.1e}",
-    #                 yshift=10,
-    #                 showarrow=False,
-    #             )
-    #             fig = add_FDR_brackets(
-    #                 fig, FDR, i, [i, point_of_reference_index], y_range
-    #             )
-
-    #         # Update the layout with the new top margin
-    #         fig.update_layout(margin=dict(t=i * 33))
+    if "test" in set(df.columns):
+        FDRs = data.df_FDR[y_gene].to_dict()
+        median_CPMs = {
+            test: np.median(df.loc[df["test"] == test, y_gene])
+            for test in np.unique(df["test"])
+        }
+        unique_comparisons = df["test"].unique()
+        y_range = get_y_range(len(unique_comparisons))
+        if data.point_of_reference in unique_comparisons:
+            point_of_reference_index = [
+                i
+                for i, test in enumerate(unique_comparisons)
+                if test == data.point_of_reference
+            ]
+            assert len(point_of_reference_index) == 1
+            for i, test in enumerate(unique_comparisons):
+                if test == data.point_of_reference:
+                    assert i == point_of_reference_index[0]
+                    continue
+                FDR = FDRs.get(test, 0.0)
+                y = median_CPMs[test]
+                fig.add_annotation(
+                    x=test,
+                    y=y,
+                    text=f"{FDR:.1e}",
+                    yshift=10,
+                    showarrow=False,
+                )
+                fig = add_FDR_brackets(
+                    fig, FDR, i, [i, point_of_reference_index[0]], y_range
+                )
+            fig.update_layout(margin=dict(t=i * 33))
 
     return html.Div(dcc.Graph(figure=fig), id=params.DIV_ID)
 

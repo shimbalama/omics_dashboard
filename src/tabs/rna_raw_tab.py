@@ -6,14 +6,13 @@ from src.helpers import (
     draw_box_chart,
     gene_dropdown,
     gene_dropdown_default,
-    Params
+    Params,
 )
 from ..components import ids
 
 KEY = "rna_bulk"
 
-PARAMs = Params(DIV_ID=ids.BOX_CHART, X= "test")
-
+PARAMs = Params(DIV_ID=ids.BOX_CHART, X="test")
 
 
 def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
@@ -82,7 +81,9 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
             ),
             html.Div(
                 draw_box_chart(
-                    data[KEY][default[0]],
+                    data[KEY][default[0]].filter(
+                        list(data[KEY][default[0]].comparisons)
+                    ),
                     data[KEY][default[0]].df.columns[0],
                     PARAMs,
                 )

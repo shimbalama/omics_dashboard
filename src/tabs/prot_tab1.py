@@ -26,6 +26,11 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
             dcc.Dropdown(
                 id="proteomics_gene_drop",
             ),
+            html.H6("test"),
+            dcc.Dropdown(
+                id='proteomics_test_drop',
+                multi=True,
+            ),
             html.Div(draw_box_chart(data[KEY][default[0]], "TTN", PARAMs)),
         ],
     )

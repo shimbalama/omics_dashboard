@@ -3,9 +3,11 @@ from dataclasses import dataclass, field
 import pandas as pd
 from typing import Protocol
 import polars as pl
-
+from time import time
 import numpy as np
-
+import numexpr as ne
+import polars as pl
+from collections import Counter
 # from .helpers import rubbish
 from functools import partial, reduce
 from typing import Callable
@@ -20,6 +22,9 @@ class Data(Protocol):
         ...
 
     def point_of_reference():
+        ...
+
+    def pandas_df():
         ...
 
 
@@ -44,15 +49,20 @@ class ProtData:
         lengths of homolymers
     """
 
-    df: pd.DataFrame = field(repr=False)
+    name: str
+    df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
 
     def filter(self, gene2: str):
-        return ProtData(self.df, self.df_FDR)
+        return ProtData(self.name, self.df, self.df_FDR)
 
     @property
     def point_of_reference(self):
         return "CTRL"
+
+    @property
+    def pandas_df(self):
+        return self.df.to_pandas()
 
 
 @dataclass(slots=True, frozen=True)
@@ -76,6 +86,7 @@ class PhosphoProtData:
         lengths of homolymers
     """
 
+    name: str
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
 
@@ -92,11 +103,15 @@ class PhosphoProtData:
             var_name="gene",
             value_name="abun",
         )
-        return PhosphoProtData(df3, self.df_FDR)
+        return PhosphoProtData(self.name, df3, self.df_FDR)
 
     @property
     def point_of_reference(self):
         return "CTRL"
+
+    @property
+    def pandas_df(self):
+        return self.df
 
 
 @dataclass(slots=True, frozen=True)
@@ -121,7 +136,8 @@ class RNASeqData:
 
     # path: Path
     # name: str = field(init=False)
-    df: pd.DataFrame = field(repr=False)
+    name: str
+    df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
     point_of_reference: str = field(init=False)
@@ -131,17 +147,21 @@ class RNASeqData:
 
         object.__setattr__(self, "point_of_reference", self.find_point_of_reference())
 
-
     def filter(self, comparisons: list[str] = None):
-        df: pd.DataFrame = self.df.query("test in @comparisons")
-        #df = self.df[self.df['test'].isin(comparisons)]#not much noticable dif re time
+        mask = self.df["test"].is_in(comparisons)
+        df = self.df.filter(mask)
         return RNASeqData(
+            self.name,
             df,
             self.df_FDR,
             self.processed_dfs,
         )
 
     # TODO - post init to check that indexes are equal. found examples of missign and duplicates gene names
+
+    @property
+    def pandas_df(self):
+        return self.df.to_pandas()
 
     @property
     def comparisons(self):
@@ -153,9 +173,12 @@ class RNASeqData:
 
     def find_point_of_reference(self):
         """frgrg"""
-
-        ref_df = self.df.query('point_of_ref == "yes"')
+        #point_of_ref = set([])
+        #try:
+        ref_df = self.df.filter(pl.col("point_of_ref") == "yes")
         point_of_ref = set(ref_df["test"])
+        # except Exception as e:
+        #     print(111111, e)
         if len(point_of_ref) == 1:
             return point_of_ref.pop()
         elif len(point_of_ref) > 1:
@@ -242,11 +265,11 @@ def read_CPM(path: Path) -> pd.DataFrame:
 
 
 def merge_FDR(fdrs):
-    #genes = list(fdrs.values())[0]["gene_id"]
+    # genes = list(fdrs.values())[0]["gene_id"]
 
     df = pd.concat([df[name] for name, df in fdrs.items()], axis=1).T
-    df['test'] = df.index
-    
+    df["test"] = df.index
+
     return df
 
 
@@ -256,9 +279,10 @@ def load_RNAseq_data(path: Path) -> RNASeqData:
     CPM = CPM.astype({col: "Float32" for col in CPM.columns[:-2]})
     FDR = load_processed_rna_files(path)
     merged_FDRs = merge_FDR(FDR)
-    #CPM.to_csv("~/Downloads/CPM3333.csv")
-    #merged_FDRs.to_csv("~/Downloads/FDR44444.csv")
-    return RNASeqData(CPM, merged_FDRs, FDR)
+    CPM = pl.from_pandas(CPM)
+    # CPM.to_csv("~/Downloads/CPM3333.csv")
+    # merged_FDRs.to_csv("~/Downloads/FDR44444.csv")
+    return RNASeqData(path.stem, CPM, merged_FDRs, FDR)
 
 
 class SchemaProt:
@@ -297,6 +321,23 @@ def make_gene_col(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     )
     return df
 
+def make_gene_col_unique(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+
+    non_unique_genes = list(df[schema.GENE])
+    counts = Counter(non_unique_genes)
+    unique_genes = []
+    for i, gene in enumerate(non_unique_genes):
+        if counts[gene] > 1:
+            unique_genes.append(f"{gene}{counts[gene]-non_unique_genes[:i].count(gene)}")
+        else:
+            unique_genes.append(gene)
+
+
+    # genes = list(df[schema.GENE])
+    # unique_genes = [ f"{a}{c[a]}" for c in [Counter()] for a in genes if [c.update([a])] ]
+    df[schema.GENE] = unique_genes
+    return df
+
 
 def remove_unwanted_cols(
     schema: type, df: pd.DataFrame, misc: list[str]
@@ -307,9 +348,7 @@ def remove_unwanted_cols(
         if col.startswith(("Abundance: F", "Abundance Ratio Adj. P-Value:"))
     ]
     df = df[misc + abundances]
-    # df.columns = [col.strip() for col in df.columns]
-    # df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
-    # print(333333333333, list(df.columns)[:4], list(df.index)[:4])
+
     return df
 
 
@@ -355,16 +394,16 @@ def load_prot_data(path: Path) -> ProtData:
     df = read_excel(path)
     pipe = [
         make_gene_col,
+        make_gene_col_unique,
         partial(remove_unwanted_cols, misc=[SchemaProt.GENE]),
         add_categories,
     ]
     preprocessor = compose(SchemaProt, *pipe)
     df = preprocessor(df)
-    # if 'QC' in list(df.columns):
-    #     del df['QC']
+ 
     df, df_FDR = split_dfs(df)
-    #df.to_csv("~/Downloads/prot2222.csv")
-    return ProtData(df, df_FDR)
+    # df.to_csv("~/Downloads/prot2222.csv")
+    return ProtData(path.stem, pl.from_pandas(df), df_FDR)
 
 
 def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
@@ -390,7 +429,7 @@ def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
 def load_phospho_data(path: Path) -> PhosphoProtData:
     df = read_excel(path)
     pipe = [
-        make_gene_col,
+        make_gene_col,#make_gene_col_unique, can't as are mainnly dups..
         create_unqiue_id,
         partial(remove_unwanted_cols, misc=[SchemaPhos.GENE, SchemaPhos.UNQIUE_ID]),
         add_categories,
@@ -398,8 +437,8 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     preprocessor = compose(SchemaPhos, *pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    #df.to_csv("~/Downloads/phos111.csv")
-    return PhosphoProtData(df, df_FDR)
+    # df.to_csv("~/Downloads/phos111.csv")
+    return PhosphoProtData(path.stem, df, df_FDR)
 
 
 # load_prot_data(Path("/Users/liam/code/omics_dashboard/data/proteomics/FibrosisStim/"))

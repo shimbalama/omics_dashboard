@@ -71,11 +71,11 @@ def create_layout(app: Dash, data) -> html.Div:
                             "subtabs_id3",
                             sub_tab_layout(app, data, "Proteins", prot_tab1),
                         ),
-                        # tab_layout(
-                        #     "Phosphoproteomics",
-                        #     "subtabs_id4",
-                        #     sub_tab_layout(app, data, "Phosphoproteomics", phos_tab1),
-                        # ),
+                        tab_layout(
+                            "Phosphoproteomics",
+                            "subtabs_id4",
+                            sub_tab_layout(app, data, "Phosphoproteomics", phos_tab1),
+                        ),
                         tab_layout("Function", "subtabs_id5"),
                     ],
                 )
