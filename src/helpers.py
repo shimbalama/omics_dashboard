@@ -203,14 +203,40 @@ def gene_dropdown_default(app, cb_id: str):
         return gene_options[0]["value"]
 
 
-def box(app, cb_in: str, cb_in2: str, data_set: Data, params: type):
+def box(app, cb_in: str, cb_in2: str, cb_in3: str, data_set: Data, params: type):
     @app.callback(
-        Output(params.DIV_ID, "children"), Input(cb_in, "value"), Input(cb_in2, "value")
+        Output(params.DIV_ID, "children"),
+        Input(cb_in, "value"),
+        Input(cb_in2, "value"),
+        Input(cb_in3, "value"),
     )
-    def update_box_chart(experiment: str, gene: str) -> html.Div:
+    def update_box_chart(experiment: str, gene: str, test: list[str]) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
         selected_data = data_set[experiment]
-        filtered: Data = selected_data.filter(gene)
+        filtered: Data = selected_data.filter(gene)#needs to take 'tests' and a gene TODO ### up to heree
         y_param = params.Y if params.Y else gene
         return draw_box_chart(filtered, y_param, params)
+
+
+def test_dropdown(app, cb_out: str, cb_in: str, data_set: Data):
+    @app.callback(
+        Output(cb_out, "options"),
+        Input(cb_in, "value"),
+    )
+    def set_comparison_options(experiment: str) -> list[dict[str, str]]:
+        """Populates the test selection dropdown with options from teh given dataset"""
+        return make_list_of_dicts(list(data_set[experiment].comparisons))
+
+
+def test_dropdown_select_all(app, cb_out: str, cb_in: str, cb_in2: str):
+    @app.callback(
+        Output(cb_out, "value"),
+        Input(cb_in, "options"),
+        Input(cb_in2, "n_clicks"),
+    )
+    def select_comparison_values(
+        available_comparisons: list[dict[str, str]], _: int
+    ) -> list[dict[str, str]]:
+        """Default to all available comparisons"""
+        return [comp["value"] for comp in available_comparisons]

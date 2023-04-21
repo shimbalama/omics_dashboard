@@ -31,6 +31,12 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                 id='proteomics_test_drop',
                 multi=True,
             ),
+            html.Button(
+                className="dropdown-button",
+                children=["Select All"],
+                id='proteomics_select_all',
+                n_clicks=0,
+            ),
             html.Div(draw_box_chart(data[KEY][default[0]], "TTN", PARAMs)),
         ],
     )

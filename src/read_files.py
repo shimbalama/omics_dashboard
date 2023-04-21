@@ -18,7 +18,7 @@ def rubbish(name: str) -> bool:
 
 
 class Data(Protocol):
-    def filter():
+    def filter():#needs to take 'tests' and a gene TODO ### up to heree
         ...
 
     def point_of_reference():
