@@ -9,7 +9,7 @@ from src.helpers import make_list_of_dicts
 KEY = 'rna_bulk'
 
 
-def render(app: Dash, data: dict[str, RNASeqData]) -> html.Div:
+def render(app: Dash, data: dict[str, RNASeqData], ids2) -> html.Div:
     # get comparisons
     def draw_volcano(df, genomic_line, effect_lims):
         return dash_bio.VolcanoPlot(

@@ -73,7 +73,8 @@ class ProtData:
 
 
 @dataclass(slots=True, frozen=True)
-class PhosphoProtData:
+class PhosphoProtData:#wait for more data before tightening bolts here... 
+    #need to figure if want FDR bracket and if filter needs 'tests'
     """Data pertaining to a chromosomal region
     Parameters
     ----------
@@ -119,6 +120,10 @@ class PhosphoProtData:
     @property
     def pandas_df(self):
         return self.df
+    
+    @property
+    def test_names(self):
+        return set(self.df["test"])
 
 
 @dataclass(slots=True, frozen=True)
@@ -141,8 +146,6 @@ class RNASeqData:
         lengths of homolymers
     """
 
-    # path: Path
-    # name: str = field(init=False)
     name: str
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
@@ -155,10 +158,8 @@ class RNASeqData:
         object.__setattr__(self, "point_of_reference", self.find_point_of_reference())
 
     def filter(self, gene: str, tests: list[str] = None):
-        print(33333333,self.df.head(3), gene, tests, sep='\n')
         df = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, 'test' , 'point_of_ref'])
-        print(44444, df)
         return RNASeqData(
             self.name,
             df,
@@ -182,12 +183,9 @@ class RNASeqData:
 
     def find_point_of_reference(self):
         """frgrg"""
-        # point_of_ref = set([])
-        # try:
+        
         ref_df = self.df.filter(pl.col("point_of_ref") == "yes")
         point_of_ref = set(ref_df["test"])
-        # except Exception as e:
-        #     print(111111, e)
         if len(point_of_ref) == 1:
             return point_of_ref.pop()
         elif len(point_of_ref) > 1:
@@ -264,17 +262,7 @@ def read_CPM(path: Path) -> pd.DataFrame:
         raise FileNotFoundError()
 
 
-# def merge_FDR(fdrs):
-#     fdrs2 = [df[["gene_id", f"{name}_FDR"]] for name, df in fdrs.items()]
-#     final_df = reduce(
-#         lambda left, right: pd.merge(left, right, on=["gene_id"], how="outer"), fdrs2
-#     )
-#     final_df.columns = ["gene_id"] + list(fdrs.keys())
-#     return final_df
-
-
 def merge_FDR(fdrs):
-    # genes = list(fdrs.values())[0]["gene_id"]
 
     df = pd.concat([df[name] for name, df in fdrs.items()], axis=1).T
     df["test"] = df.index

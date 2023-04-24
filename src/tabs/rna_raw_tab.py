@@ -9,69 +9,23 @@ from src.helpers import (
     gene_dropdown_default,
     box,
     get_defaults,
+    IDs,
     Params,
+    dropdowns,
 )
 from ..components import ids
 
 KEY = "rna_bulk"
 
-PARAMs = Params(DIV_ID=ids.BOX_CHART, X="test")
+PARAMs = Params(X="test")
 
 
-def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
-    # see https://dash.plotly.com/basic-callbacks#dash-app-with-chained-callbacks
+def render(app: Dash, data: dict[str, dict[str, Data]], ids: IDs) -> html.Div:
+    gene_dropdown(app, ids, data[KEY])
+    gene_dropdown_default(app, ids)
+    test_dropdown(app, ids, data[KEY])
+    test_dropdown_select_all(app, ids)
+    box(app, ids, data[KEY], PARAMs)
 
-    gene_dropdown(app, ids.GENE_DROPDOWN, ids.RAW_RNA_DATA_DROP, data[KEY])
-    gene_dropdown_default(app, ids.GENE_DROPDOWN)
-
-    test_dropdown(app, ids.COMPARISON_DROPDOWN, ids.RAW_RNA_DATA_DROP, data[KEY])
-    test_dropdown_select_all(
-        app,
-        ids.COMPARISON_DROPDOWN,
-        ids.COMPARISON_DROPDOWN,
-        ids.SELECT_ALL_COMPARISONS_BUTTON,
-    )
-
-    box(
-        app,
-        ids.RAW_RNA_DATA_DROP,
-        ids.GENE_DROPDOWN,
-        ids.COMPARISON_DROPDOWN,
-        data[KEY],
-        PARAMs,
-    )
-
-    first_gene, dataset, datasets = get_defaults(data, KEY)
-    return html.Div(
-        children=[
-            html.H6("Dataset"),
-            dcc.Dropdown(
-                id=ids.RAW_RNA_DATA_DROP,
-                options=datasets,
-                value=datasets[0],
-                multi=False,
-            ),
-            html.H6("Gene"),
-            dcc.Dropdown(
-                id=ids.GENE_DROPDOWN,
-            ),
-            html.H6("test"),
-            dcc.Dropdown(
-                id=ids.COMPARISON_DROPDOWN,
-                multi=True,
-            ),
-            html.Button(
-                className="dropdown-button",
-                children=["Select All"],
-                id=ids.SELECT_ALL_COMPARISONS_BUTTON,
-                n_clicks=0,
-            ),
-            html.Div(
-                draw_box_chart(
-                    dataset,
-                    first_gene,
-                    PARAMs,
-                )
-            ),
-        ],
-    )
+    # first_gene, dataset, datasets = get_defaults(data, KEY)
+    return html.Div(children=dropdowns(data, KEY, PARAMs, ids))
