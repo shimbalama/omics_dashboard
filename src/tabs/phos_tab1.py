@@ -25,11 +25,12 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
         app,
         "phosphoproteomics_dataset_drop",
         "phosphoproteomics_gene_drop",
+        'phosphoproteomics_test_drop',
         data[KEY],
         PARAMs,
     )
     default = list(data[KEY].keys())
-    default_data = data[KEY][default[0]].filter("AAK1")
+    default_data = data[KEY][default[0]].filter("AAK1", [None])
     return html.Div(#this can be pulled into func... right?TODO
         children=[
             html.H6("Dataset"),

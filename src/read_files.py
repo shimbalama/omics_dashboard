@@ -8,6 +8,7 @@ import numpy as np
 import numexpr as ne
 import polars as pl
 from collections import Counter
+
 # from .helpers import rubbish
 from functools import partial, reduce
 from typing import Callable
@@ -18,7 +19,7 @@ def rubbish(name: str) -> bool:
 
 
 class Data(Protocol):
-    def filter():#needs to take 'tests' and a gene TODO ### up to heree
+    def filter():
         ...
 
     def point_of_reference():
@@ -53,8 +54,10 @@ class ProtData:
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
 
-    def filter(self, gene2: str):
-        return ProtData(self.name, self.df, self.df_FDR)
+    def filter(self, gene: str, tests: list[str]):
+        df = self.df.filter(self.df["test"].is_in(tests))
+        df = df.select([gene, 'test'])
+        return ProtData(self.name, df, self.df_FDR)
 
     @property
     def point_of_reference(self):
@@ -63,6 +66,10 @@ class ProtData:
     @property
     def pandas_df(self):
         return self.df.to_pandas()
+    
+    @property
+    def test_names(self):
+        return set(self.df["test"])
 
 
 @dataclass(slots=True, frozen=True)
@@ -90,20 +97,20 @@ class PhosphoProtData:
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
 
-    def filter(self, gene: str):
-        dd = self.df.copy().T
-        dd["gene"] = dd.index
-        dd = dd.query('gene == @gene | gene == "test"')
-        del dd["gene"]
-        dd = dd.set_index("ID")
-        dd = dd.T
-        df3 = dd.melt(
-            value_vars=list(dd.columns)[:-1],
+    def filter(self, gene: str, tests: list[str]):
+        df = self.df.copy().T
+        df["gene"] = df.index
+        df = df.query('gene == @gene | gene == "test"')
+        del df["gene"]
+        df = df.set_index("ID")
+        df = df.T
+        df_melted = df.melt(
+            value_vars=list(df.columns)[:-1],
             id_vars="ID",
             var_name="gene",
             value_name="abun",
         )
-        return PhosphoProtData(self.name, df3, self.df_FDR)
+        return PhosphoProtData(self.name, df_melted, self.df_FDR)
 
     @property
     def point_of_reference(self):
@@ -147,9 +154,11 @@ class RNASeqData:
 
         object.__setattr__(self, "point_of_reference", self.find_point_of_reference())
 
-    def filter(self, comparisons: list[str] = None):
-        mask = self.df["test"].is_in(comparisons)
-        df = self.df.filter(mask)
+    def filter(self, gene: str, tests: list[str] = None):
+        print(33333333,self.df.head(3), gene, tests, sep='\n')
+        df = self.df.filter(self.df["test"].is_in(tests))
+        df = df.select([gene, 'test' , 'point_of_ref'])
+        print(44444, df)
         return RNASeqData(
             self.name,
             df,
@@ -164,7 +173,7 @@ class RNASeqData:
         return self.df.to_pandas()
 
     @property
-    def comparisons(self):
+    def test_names(self):
         return set(self.df["test"])
 
     @property
@@ -173,8 +182,8 @@ class RNASeqData:
 
     def find_point_of_reference(self):
         """frgrg"""
-        #point_of_ref = set([])
-        #try:
+        # point_of_ref = set([])
+        # try:
         ref_df = self.df.filter(pl.col("point_of_ref") == "yes")
         point_of_ref = set(ref_df["test"])
         # except Exception as e:
@@ -186,9 +195,9 @@ class RNASeqData:
         else:
             return None
 
-    @property
-    def mean_count(self) -> pd.DataFrame:
-        return self.df.groupby("test").agg("mean")
+    # @property
+    # def mean_count(self) -> pd.DataFrame:
+    #     return self.df.groupby("test").agg("mean")
 
 
 def make_index(df):
@@ -321,17 +330,18 @@ def make_gene_col(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     )
     return df
 
-def make_gene_col_unique(schema: type, df: pd.DataFrame) -> pd.DataFrame:
 
+def make_gene_col_unique(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     non_unique_genes = list(df[schema.GENE])
     counts = Counter(non_unique_genes)
     unique_genes = []
     for i, gene in enumerate(non_unique_genes):
         if counts[gene] > 1:
-            unique_genes.append(f"{gene}{counts[gene]-non_unique_genes[:i].count(gene)}")
+            unique_genes.append(
+                f"{gene}{counts[gene]-non_unique_genes[:i].count(gene)}"
+            )
         else:
             unique_genes.append(gene)
-
 
     # genes = list(df[schema.GENE])
     # unique_genes = [ f"{a}{c[a]}" for c in [Counter()] for a in genes if [c.update([a])] ]
@@ -400,7 +410,7 @@ def load_prot_data(path: Path) -> ProtData:
     ]
     preprocessor = compose(SchemaProt, *pipe)
     df = preprocessor(df)
- 
+
     df, df_FDR = split_dfs(df)
     # df.to_csv("~/Downloads/prot2222.csv")
     return ProtData(path.stem, pl.from_pandas(df), df_FDR)
@@ -429,7 +439,7 @@ def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
 def load_phospho_data(path: Path) -> PhosphoProtData:
     df = read_excel(path)
     pipe = [
-        make_gene_col,#make_gene_col_unique, can't as are mainnly dups..
+        make_gene_col,  # make_gene_col_unique, can't as are mainnly dups..
         create_unqiue_id,
         partial(remove_unwanted_cols, misc=[SchemaPhos.GENE, SchemaPhos.UNQIUE_ID]),
         add_categories,

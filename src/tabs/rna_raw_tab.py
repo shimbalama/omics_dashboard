@@ -8,6 +8,7 @@ from src.helpers import (
     gene_dropdown,
     gene_dropdown_default,
     box,
+    get_defaults,
     Params,
 )
 from ..components import ids
@@ -30,30 +31,24 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
         ids.COMPARISON_DROPDOWN,
         ids.SELECT_ALL_COMPARISONS_BUTTON,
     )
-  
-    box()
-    # @app.callback(
-    #     Output(ids.BOX_CHART, "children"),
-    #     Input(ids.RAW_RNA_DATA_DROP, "value"),
-    #     Input(ids.GENE_DROPDOWN, "value"),
-    #     Input(ids.COMPARISON_DROPDOWN, "value"),
-    # )
-    # def update_box_chart(dataset_choice: str, gene: str, comps: list[str]) -> html.Div:
-    #     """Re draws a box and wisker of the CPM data for each set of replicates for eact
-    #     test and overlays the respective FDR value"""
-    #     selected_data = data[KEY][dataset_choice]
-    #     filtered: Data = selected_data.filter(comps)
 
-    #     return draw_box_chart(filtered, gene, PARAMs)
+    box(
+        app,
+        ids.RAW_RNA_DATA_DROP,
+        ids.GENE_DROPDOWN,
+        ids.COMPARISON_DROPDOWN,
+        data[KEY],
+        PARAMs,
+    )
 
-    default = list(data[KEY].keys())
+    first_gene, dataset, datasets = get_defaults(data, KEY)
     return html.Div(
         children=[
             html.H6("Dataset"),
             dcc.Dropdown(
                 id=ids.RAW_RNA_DATA_DROP,
-                options=default,
-                value=default[0],
+                options=datasets,
+                value=datasets[0],
                 multi=False,
             ),
             html.H6("Gene"),
@@ -73,10 +68,8 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
             ),
             html.Div(
                 draw_box_chart(
-                    data[KEY][default[0]].filter(
-                        list(data[KEY][default[0]].comparisons)
-                    ),
-                    data[KEY][default[0]].df.columns[0],
+                    dataset,
+                    first_gene,
                     PARAMs,
                 )
             ),

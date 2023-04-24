@@ -210,11 +210,11 @@ def box(app, cb_in: str, cb_in2: str, cb_in3: str, data_set: Data, params: type)
         Input(cb_in2, "value"),
         Input(cb_in3, "value"),
     )
-    def update_box_chart(experiment: str, gene: str, test: list[str]) -> html.Div:
+    def update_box_chart(experiment: str, gene: str, tests: list[str]) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
         selected_data = data_set[experiment]
-        filtered: Data = selected_data.filter(gene)#needs to take 'tests' and a gene TODO ### up to heree
+        filtered: Data = selected_data.filter(gene, tests)
         y_param = params.Y if params.Y else gene
         return draw_box_chart(filtered, y_param, params)
 
@@ -226,7 +226,7 @@ def test_dropdown(app, cb_out: str, cb_in: str, data_set: Data):
     )
     def set_comparison_options(experiment: str) -> list[dict[str, str]]:
         """Populates the test selection dropdown with options from teh given dataset"""
-        return make_list_of_dicts(list(data_set[experiment].comparisons))
+        return make_list_of_dicts(list(data_set[experiment].test_names))
 
 
 def test_dropdown_select_all(app, cb_out: str, cb_in: str, cb_in2: str):
@@ -240,3 +240,15 @@ def test_dropdown_select_all(app, cb_out: str, cb_in: str, cb_in2: str):
     ) -> list[dict[str, str]]:
         """Default to all available comparisons"""
         return [comp["value"] for comp in available_comparisons]
+
+
+def get_defaults(data: Data, key: str) -> tuple[str, Data]:
+
+    datasets = list(data[key].keys())
+    first_dataset = data[key][datasets[0]]
+    first_gene = first_dataset.df.columns[0]
+    print('wtffffff',first_dataset.test_names)
+    dataset = first_dataset.filter(first_gene, list(first_dataset.test_names))
+
+    return first_gene, dataset, datasets
+

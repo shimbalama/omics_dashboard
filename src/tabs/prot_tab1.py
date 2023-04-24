@@ -1,24 +1,48 @@
 from dash import Dash, dcc, html
 from ..components import ids
 from src.read_files import ProtData, Data
-from src.helpers import draw_box_chart, gene_dropdown, gene_dropdown_default, box, Params
+from src.helpers import (
+    draw_box_chart,
+    gene_dropdown,
+    gene_dropdown_default,
+    box,
+    get_defaults,
+    test_dropdown,
+    test_dropdown_select_all,
+    Params,
+)
 
 KEY = "proteomics"
 
 PARAMs = Params(DIV_ID="iddd222", X="test")
 
+
 def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
     gene_dropdown(app, "proteomics_gene_drop", "proteomics_dataset_drop", data[KEY])
     gene_dropdown_default(app, "proteomics_gene_drop")
-    box(app, "proteomics_dataset_drop", "proteomics_gene_drop", data[KEY], PARAMs)
-    default = list(data[KEY].keys())
+    test_dropdown(app, "proteomics_test_drop", "proteomics_dataset_drop", data[KEY])
+    test_dropdown_select_all(
+        app,
+        "proteomics_test_drop",
+        "proteomics_test_drop",
+        "proteomics_select_all",
+    )
+    box(
+        app,
+        "proteomics_dataset_drop",
+        "proteomics_gene_drop",
+        "proteomics_test_drop",
+        data[KEY],
+        PARAMs,
+    )
+    first_gene, dataset, datasets = get_defaults(data, KEY)
     return html.Div(
-        children=[
+        children=[#this can be func
             html.H6("Dataset"),
             dcc.Dropdown(
                 id="proteomics_dataset_drop",
-                options=default,
-                value=default[0],
+                options=datasets,
+                value=datasets[0],
                 multi=False,
             ),
             html.P("You can use prot to interactively"),
@@ -28,18 +52,17 @@ def render(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
             ),
             html.H6("test"),
             dcc.Dropdown(
-                id='proteomics_test_drop',
+                id="proteomics_test_drop",
                 multi=True,
             ),
             html.Button(
                 className="dropdown-button",
                 children=["Select All"],
-                id='proteomics_select_all',
+                id="proteomics_select_all",
                 n_clicks=0,
             ),
-            html.Div(draw_box_chart(data[KEY][default[0]], "TTN", PARAMs)),
+            html.Div(draw_box_chart(dataset, first_gene, PARAMs)),
         ],
     )
 
 
-# draw_box_chart("TTN", data[KEY][default[0]], "iddd222", "test")
