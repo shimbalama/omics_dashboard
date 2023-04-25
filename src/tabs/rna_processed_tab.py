@@ -9,7 +9,7 @@ from src.helpers import make_list_of_dicts
 KEY = 'rna_bulk'
 
 
-def render(app: Dash, data: dict[str, RNASeqData], ids2) -> html.Div:
+def render(app: Dash, data: dict[str, RNASeqData], ids2, params) -> html.Div:
     # get comparisons
     def draw_volcano(df, genomic_line, effect_lims):
         return dash_bio.VolcanoPlot(
@@ -28,7 +28,7 @@ def render(app: Dash, data: dict[str, RNASeqData], ids2) -> html.Div:
     )
     def set_comparison_options(experiment: str) -> list[dict[str, str]]:
         """Set the test option by given experiemnt name"""
-        return make_list_of_dicts(list(data[KEY][experiment].degs))
+        return make_list_of_dicts(list(data[experiment].degs))
 
     @app.callback(
         Output(ids.PROCESSED_COMPARISON_DROPDOWN, "value"),
@@ -52,16 +52,16 @@ def render(app: Dash, data: dict[str, RNASeqData], ids2) -> html.Div:
         datadset_id: str,
     ):
         """Update rendering of data points upon changing x-value of vertical dashed lines."""
-        selcted_data: RNASeqData = data[KEY][datadset_id]
+        selcted_data: RNASeqData = data[datadset_id]
         df: pd.DataFrame = selcted_data.processed_dfs[comp].copy()
         df['gene_symbol'] = df.index
         df = df.reset_index(drop=True)
         return draw_volcano(df, genomic_line, effect_lims)
 
-    experiments = list(data[KEY].keys())
+    experiments = list(data.keys())
     first_experiment = experiments[0]
-    default_comparison = list(data[KEY][first_experiment].processed_dfs.keys())[0]
-    default_df = data[KEY][first_experiment].processed_dfs[default_comparison]
+    default_comparison = list(data[first_experiment].processed_dfs.keys())[0]
+    default_df = data[first_experiment].processed_dfs[default_comparison]
     default_df['gene_symbol'] = default_df.index
     default_df = default_df.reset_index(drop=True)
     #print(111122223333,experiments,first_experiment,default_comparison,default_df)

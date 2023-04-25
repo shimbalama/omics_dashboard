@@ -19,7 +19,6 @@ KEY = "rna_bulk"
 
 PARAMs = Params(X="test")
 
-
 def render(app: Dash, data: dict[str, dict[str, Data]], ids: IDs) -> html.Div:
     gene_dropdown(app, ids, data[KEY])
     gene_dropdown_default(app, ids)
@@ -27,5 +26,4 @@ def render(app: Dash, data: dict[str, dict[str, Data]], ids: IDs) -> html.Div:
     test_dropdown_select_all(app, ids)
     box(app, ids, data[KEY], PARAMs)
 
-    # first_gene, dataset, datasets = get_defaults(data, KEY)
     return html.Div(children=dropdowns(data, KEY, PARAMs, ids))
