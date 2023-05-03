@@ -28,7 +28,6 @@ class Data(Protocol):
     def pandas_df():
         ...
 
-
 @dataclass(slots=True, frozen=True)
 class ProtData:
     """Data pertaining to a chromosomal region
@@ -124,7 +123,6 @@ class PhosphoProtData:#wait for more data before tightening bolts here...
     @property
     def test_names(self):
         return set(self.df["test"])
-
 
 @dataclass(slots=True, frozen=True)
 class RNASeqData:

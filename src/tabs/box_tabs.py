@@ -4,11 +4,12 @@ from dash.dependencies import Input, Output
 from typing import Any
 from src.helpers import draw_box_chart, Params, IDs, make_list_of_dicts
 
-def gene_dropdown(app, ids: IDs, data_set: dict[str, Data]):
+
+def gene_dropdown(app, ids: IDs, datasets: dict[str, Data]):
     @app.callback(Output(ids.gene_drop, "options"), Input(ids.data_drop, "value"))
-    def set_gene_options(experiment: str) -> list[dict[str, str]]:
+    def set_gene_options(dataset: str) -> list[dict[str, str]]:
         """Populates the gene selection dropdown with options from teh given dataset"""
-        return make_list_of_dicts(list(data_set[experiment].df.columns))
+        return make_list_of_dicts(list(datasets[dataset].df.columns))
 
 
 def gene_dropdown_default(app, ids: IDs):
@@ -18,30 +19,30 @@ def gene_dropdown_default(app, ids: IDs):
         return gene_options[0]["value"]
 
 
-def box(app, ids: IDs, data_set: Data, params: type):
+def box(app, ids: IDs, datasets: dict[str, Data], params: type):
     @app.callback(
         Output(ids.plot, "children"),
         Input(ids.data_drop, "value"),
         Input(ids.gene_drop, "value"),
         Input(ids.tests_drop, "value"),
     )
-    def update_box_chart(experiment: str, gene: str, tests: list[str]) -> html.Div:
+    def update_box_chart(dataset: str, gene: str, tests: list[str]) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
-        selected_data = data_set[experiment]
+        selected_data = datasets[dataset]
         filtered: Data = selected_data.filter(gene, tests)
         y_param = params.Y if params.Y else gene
         return draw_box_chart(filtered, y_param, params, ids.plot)
 
 
-def test_dropdown(app, ids: IDs, data_set: Data):
+def test_dropdown(app, ids: IDs, datasets: dict[str, Data]):
     @app.callback(
         Output(ids.tests_drop, "options"),
         Input(ids.data_drop, "value"),
     )
-    def set_comparison_options(experiment: str) -> list[dict[str, str]]:
+    def set_comparison_options(dataset: str) -> list[dict[str, str]]:
         """Populates the test selection dropdown with options from teh given dataset"""
-        return make_list_of_dicts(list(data_set[experiment].test_names))
+        return make_list_of_dicts(list(datasets[dataset].test_names))
 
 
 def test_dropdown_select_all(app, ids: IDs):
@@ -57,24 +58,24 @@ def test_dropdown_select_all(app, ids: IDs):
         return [comp["value"] for comp in available_comparisons]
 
 
-def get_defaults(data: Data) -> tuple[str, Data]:
-    datasets = list(data.keys())
-    first_dataset = data[datasets[0]]
+def get_defaults(datasets: dict[str, Data]) -> tuple[str, Data, list[str]]:
+    dataset_names = list(datasets.keys())
+    first_dataset = datasets[dataset_names[0]]
     first_gene = first_dataset.df.columns[0]
     dataset = first_dataset.filter(first_gene, list(first_dataset.test_names))
 
-    return first_gene, dataset, datasets
+    return first_gene, dataset, dataset_names
 
 
-def dropdowns(data: Data, params: Params, ids: IDs) -> list[Any]:
-    first_gene, dataset, datasets = get_defaults(data)
+def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
+    first_gene, dataset, dataset_names = get_defaults(datasets)
     y_param = params.Y if params.Y else first_gene
     children = [
         html.H6("Dataset"),
         dcc.Dropdown(
             id=ids.data_drop,
-            options=datasets,
-            value=datasets[0],
+            options=dataset_names,
+            value=dataset_names[0],
             multi=False,
         ),
         html.H6("Gene"),

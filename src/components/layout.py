@@ -6,11 +6,13 @@ from ..tabs import (
     text_tab1,
     text_tab2,
 )
+from src.read_files import Data
 
 from src.helpers import IDs, Params
 
 
-def tab_layout(name, subtabs_id, *args):
+def tab_layout(name: str, subtabs_id: str, *args) -> dcc.Tab:
+    """Defines tab/subtab structure"""
     return dcc.Tab(
         label=name,
         value=name,
@@ -18,7 +20,14 @@ def tab_layout(name, subtabs_id, *args):
     )
 
 
-def sub_tab_layout(app, data, name, rendering, class_name="control-tab"):
+def sub_tab_layout(
+    app: Dash,
+    data: dict[str, Data],
+    name: str,
+    rendering,
+    class_name: str = "control-tab",
+):
+    '''Defines base unit of UI'''
     ids = IDs(name)
     params = (
         Params(X="gene", COLOUR="ID", LOG=True, Y="abun")
@@ -47,7 +56,7 @@ def sub_tab_layout(app, data, name, rendering, class_name="control-tab"):
     )
 
 
-def create_layout(app: Dash, data) -> html.Div:
+def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
     return html.Div(
         html.Div(
             id="vp-control-tabs",
