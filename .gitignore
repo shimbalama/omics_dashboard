@@ -6,7 +6,7 @@ data*
 #testing
 play*
 *.ipynb_checkpoints
-*.ipynb
+#*.ipynb
 test.py
 
 #testing
