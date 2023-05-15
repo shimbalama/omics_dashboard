@@ -28,6 +28,7 @@ class Data(Protocol):
     def pandas_df():
         ...
 
+
 @dataclass(slots=True, frozen=True)
 class ProtData:
     """Data pertaining to a chromosomal region
@@ -55,7 +56,7 @@ class ProtData:
 
     def filter(self, gene: str, tests: list[str]):
         df = self.df.filter(self.df["test"].is_in(tests))
-        df = df.select([gene, 'test'])
+        df = df.select([gene, "test"])
         return ProtData(self.name, df, self.df_FDR)
 
     @property
@@ -65,15 +66,15 @@ class ProtData:
     @property
     def pandas_df(self):
         return self.df.to_pandas()
-    
+
     @property
     def test_names(self):
         return set(self.df["test"])
 
 
 @dataclass(slots=True, frozen=True)
-class PhosphoProtData:#wait for more data before tightening bolts here... 
-    #need to figure if want FDR bracket and if filter needs 'tests'
+class PhosphoProtData:  # wait for more data before tightening bolts here...
+    # need to figure if want FDR bracket and if filter needs 'tests'
     """Data pertaining to a chromosomal region
     Parameters
     ----------
@@ -119,10 +120,11 @@ class PhosphoProtData:#wait for more data before tightening bolts here...
     @property
     def pandas_df(self):
         return self.df
-    
+
     @property
     def test_names(self):
         return set(self.df["test"])
+
 
 @dataclass(slots=True, frozen=True)
 class RNASeqData:
@@ -157,7 +159,7 @@ class RNASeqData:
 
     def filter(self, gene: str, tests: list[str] = None):
         df = self.df.filter(self.df["test"].is_in(tests))
-        df = df.select([gene, 'test' , 'point_of_ref'])
+        df = df.select([gene, "test", "point_of_ref"])
         return RNASeqData(
             self.name,
             df,
@@ -181,7 +183,7 @@ class RNASeqData:
 
     def find_point_of_reference(self):
         """frgrg"""
-        
+
         ref_df = self.df.filter(pl.col("point_of_ref") == "yes")
         point_of_ref = set(ref_df["test"])
         if len(point_of_ref) == 1:
@@ -261,7 +263,6 @@ def read_CPM(path: Path) -> pd.DataFrame:
 
 
 def merge_FDR(fdrs):
-
     df = pd.concat([df[name] for name, df in fdrs.items()], axis=1).T
     df["test"] = df.index
 
@@ -435,6 +436,198 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     df, df_FDR = split_dfs(df)
     # df.to_csv("~/Downloads/phos111.csv")
     return PhosphoProtData(path.stem, df, df_FDR)
+
+
+class SchemaFunction:
+    ARRHYTHMIA = "Arrhythmia"
+    KEY = "key"
+    DRUG = "Drug"
+    TIME = "Timepoint"
+    DOSE = "Dose"
+    POS = "Well Number"
+    FORCE = "Force (uN)"
+    RATE = "Rate (bps)"
+    TA50 = "Ta50 (s)"
+    TR50 = "Tr50 (s)"
+    TPEAK = "Tpeak 85 (s)"
+    TA_15_30 = "Ta 15-30 (s)"
+    TA_30_85 = "Ta 30-85 (s)"
+    TR_85_50 = "Tr 85-50 (s)"
+    TR_50_15 = "Tr 50-15 (s)"
+
+
+@dataclass(slots=True, frozen=True)
+class FunctionData:
+    """Data pertaining to a chromosomal region
+    Parameters
+    ----------
+    features_to_drop : str or list, default=None
+        Variable(s) to be dropped from the dataframe
+
+
+    Methods
+    -------
+    find_hom_pol_positions:
+        Returns all zero based genomic positions that are in or
+        adjacent to homoploymers of given length
+
+    Properties
+    -------
+    homopolymer_lengths:
+        lengths of homolymers
+    """
+
+    name: str
+    df: pd.DataFrame = field(repr=False)
+    dose: pd.DataFrame = field(repr=False)
+
+    def filter(self, test: str, metric: str):  # test is drug, here
+        cols = [metric, SchemaFunction.TIME, SchemaFunction.POS]
+        df: pd.DataFrame = self.df.loc[test][cols]
+        df = df.reset_index()[cols]
+        df = df.pivot(
+            index=SchemaFunction.TIME, columns=SchemaFunction.POS, values=metric
+        ).T
+        df = df[["Baseline", "1", "2", "3", "4", "5"]]
+        df.columns = [0, 1, 2, 3, 4, 5]
+
+        return FunctionData(self.name, df, self.dose.loc[test])
+
+    @property
+    def test_names(self):
+        return set(drug for drug, timepoint in self.df.index[:])
+
+    @property
+    def metrics(self):
+        return [
+            "Force (uN)",
+            "Rate (bps)",
+            "Ta50 (s)",
+            "Tr50 (s)",
+            "Tpeak 85 (s)",
+            "Ta 15-30 (s)",
+            "Ta 30-85 (s)",
+            "Tr 85-50 (s)",
+            "Tr 50-15 (s)",
+            "RRscat (s)",
+        ]
+
+
+def time_str(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    df[schema.TIME] = df[schema.TIME].astype(str)
+    return df
+
+
+def remove_arrhythmia(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    if schema.ARRHYTHMIA in df.columns:
+        df = df.query('Arrhythmia == "N"')
+    return df
+
+
+def key(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    df[schema.KEY] = df[schema.TIME] + ":" + df[schema.POS]
+    return df
+
+
+def del_uneeded(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    del df["Plate"]
+    del df["Normalisation 1"]
+    del df["Normalisation 2"]
+    return df
+
+
+def index_key(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    return df.set_index("key")
+
+
+def normalize_group(group, data_cols):
+    drug_data_dict = group.to_dict()
+    norm = {}
+    for data in data_cols:
+        norm[data] = {}
+        for k, v in drug_data_dict[data].items():
+            _, pos = k.split(":")
+            baseline_key = "Baseline:" + pos
+            norm[data][k] = v / drug_data_dict[data][baseline_key]
+    return pd.DataFrame(norm)
+
+
+def replace_time(df):
+    df[SchemaFunction.TIME] = df.index
+    df[SchemaFunction.TIME] = df[SchemaFunction.TIME].apply(lambda x: x.split(":")[0])
+
+    return df
+
+
+def normalize_group2(group, DMSO_, data_cols):
+    group = replace_time(group)
+    DMSO_ = replace_time(DMSO_)
+    drug_data_dict = group.to_dict()
+    norm = {}
+    for data in data_cols:
+        norm[data] = {}
+        for k, v in drug_data_dict[data].items():
+            time, _ = k.split(":")
+            mean = DMSO_.query("Timepoint == @time")[data].mean()
+            norm[data][k] = v / mean
+    return pd.DataFrame(norm)
+
+
+def index_copy(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    df["index_copy"] = df.index
+    return df
+
+
+def index_copy2(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    df["index_copy"] = df["index_copy"].apply(lambda x: x[1])
+    return df
+
+
+def zeros(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    df = df.fillna(0.0)
+    return df
+
+
+def time_and_pos(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    df[[SchemaFunction.TIME, SchemaFunction.POS]] = df["index_copy"].str.split(
+        ":", expand=True
+    )
+    return df
+
+
+def dose(df):
+    df = df[[SchemaFunction.DRUG, SchemaFunction.DOSE, SchemaFunction.TIME]]
+    return df.set_index([SchemaFunction.DRUG, SchemaFunction.TIME])
+
+
+def load_function_data(path: Path) -> PhosphoProtData:
+    df = read_excel(path)
+    pipe = [time_str, remove_arrhythmia, key, del_uneeded, index_key]
+    preprocessor = compose(SchemaFunction, *pipe)
+    df = preprocessor(df)
+    dose_df = dose(df)
+    data_cols = [
+        "Force (uN)",
+        "Rate (bps)",
+        "Ta50 (s)",
+        "Tr50 (s)",
+        "Tpeak 85 (s)",
+        "Ta 15-30 (s)",
+        "Ta 30-85 (s)",
+        "Tr 85-50 (s)",
+        "Tr 50-15 (s)",
+    ]
+    normalized_df = df.groupby("Drug").apply(normalize_group, data_cols)
+    normalized_df = normalized_df.reset_index(level=["Drug"])
+    DMSO = normalized_df.query('Drug == "DMSO 1"')
+    normalized_df2 = normalized_df.groupby("Drug").apply(
+        normalize_group2, DMSO, data_cols
+    )
+    pipe = [index_copy, index_copy2, zeros, time_and_pos]
+    preprocessor = compose(SchemaFunction, *pipe)
+    df = preprocessor(normalized_df2)
+    df.to_csv("~/Downloads/func111.csv")
+    return FunctionData(path.stem, df, dose_df)
 
 
 # load_prot_data(Path("/Users/liam/code/omics_dashboard/data/proteomics/FibrosisStim/"))

@@ -5,6 +5,7 @@ from ..tabs import (
     rna_processed_tab,
     text_tab1,
     text_tab2,
+    function_tab
 )
 from src.read_files import Data
 
@@ -94,7 +95,13 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                 box_tabs,
                             ),
                         ),
-                        tab_layout("Function", "subtabs_id5"),
+                        tab_layout(
+                            "Function",
+                            "subtabs_id5",
+                            sub_tab_layout(
+                                app, data["function"], "Function", function_tab
+                            ),
+                        ),
                     ],
                 )
             ],

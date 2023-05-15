@@ -1,12 +1,11 @@
 from dash import Dash, dcc, html
-from src.read_files import ProtData, Data
+from src.read_files import Data
 from src.helpers import (
     draw_box_chart,
     gene_dropdown,
     gene_dropdown_default,
     box,
     get_defaults,
-    dropdowns,
     Params,
     IDs,
 )
