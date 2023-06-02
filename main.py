@@ -34,12 +34,8 @@ def read_all(path: Path):  # might have to chnage htis to read on demand??
 def main() -> None:
     start = time()
     data_folders = [path for path in DATA_PATH.glob("*") if not rubbish(path.name)]
-    # print(data_folders)
-    # for f in data_folders:
-    #     print(list(f.glob('*')))
-    #     try:print(5555555, read_all(f))
-    #     except:print(6666,f)
-    with Pool(processes=5) as pool:
+    
+    with Pool(processes=8) as pool:
         data = dict(pool.imap_unordered(read_all, data_folders))
     # data = dict(read_all(gg) for gg in data_folders)
     print(f"data loaded in {time()-start} seconds")

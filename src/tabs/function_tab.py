@@ -5,39 +5,63 @@ import pandas as pd
 from src.helpers import make_list_of_dicts
 import plotly.graph_objects as go
 import plotly.express as px
+from scipy.special import expit
 
 KEY = "function"
 
 
 def render(app: Dash, datasets: dict[str, Data], ids2, params) -> html.Div:
-    def draw_line(data: Data) -> html.Div:
+    def draw_line(data: Data, test: str) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
+        arrhythmia = data.arrhythmia.query('Drug == @test')
+
+        print(1111111122, arrhythmia, sep='\n')
+        
+        
+        # conc_with_arrhythmia = data.arrhythmia.get(test)
+        # if conc_with_arrhythmia:
+        #     print("conc_with_arrhythmia", conc_with_arrhythmia)
         datas = data.df.describe().to_dict()
-        dose = data.dose.to_dict()
-        dose["Dose"]["0"] = 0
-        
-        xs = [dose["Dose"][str(time_point)] for time_point in list(datas.keys())]
+        print('datas', datas)
+        data.dose["0"] = 0
+
+        xs = [data.dose[str(time_point)] for time_point in list(datas.keys())]
         ys = [v.get("50%") for v in datas.values()]
+        # # https://www.statology.org/sigmoid-function-python/
+        # # https://datagy.io/sigmoid-function-python/
+        # ys = expit(xs)[::-1]
         stds = [v.get("std") for v in datas.values()]
-        fig = go.Figure(
-            data=go.Scatter(
-                x=xs,
-                y=ys,
-                error_y=dict(
-                    type="data",  # value of error bar given in data coordinates
-                    array=stds,
-                    visible=True,
-                ),
-            )
-        )
-        fig.update_xaxes(type="log")
-        
-
-        # fig = px.scatter(
-        #     data.df, x=xs, y=ys, error_y=stds, error_y_minus=stds, log_x=True
+        arrhythmia_counts: list[str] = []
+        for x in xs:
+            hhh = arrhythmia.query('Dose == @x')
+            dd: dict[str, int] = dict(zip(hhh['Arrhythmia'], hhh['count']))
+            print('ddddddd', dd)
+            total = sum(dd.values())
+            non_arrhythmic: int = total - dd.get('Y', 0)
+            arrhythmia_counts.append(f'{str(non_arrhythmic)}/{str(total)}')
+        print('arrhythmia_counts', arrhythmia_counts)
+        # fig = go.Figure(
+        #     data=go.Scatter(
+        #         x=xs,
+        #         y=ys,
+        #         error_y=dict(
+        #             type="data",  # value of error bar given in data coordinates
+        #             array=stds,
+        #             visible=True,
+        #         ),
+        #         mode="markers",
+        #         text=arrhythmia_counts,
+        #         textposition="top center"
+        #     )
         # )
+        # fig.update_xaxes(type="log")
+        # fig.update_yaxes(range=[0, 1.5])
 
+        fig = px.scatter(
+            data.df, x=xs, y=ys, error_y=stds, error_y_minus=stds, text=arrhythmia_counts, log_x=True, size_max=60
+        )
+        fig.update_traces(textposition='middle left')
         # print(7777777, data.df.head(11))
         return fig  # , html.Div(dcc.Graph(figure=fig), id="func_plot")
 
@@ -67,16 +91,14 @@ def render(app: Dash, datasets: dict[str, Data], ids2, params) -> html.Div:
     )
     def update_graph(datadset_id: str, test: str, metric: str):
         """Update rendering of data points upon changing x-value of vertical dashed lines."""
-        print(1111, datadset_id, test, metric)
         selected_data: Data = datasets[datadset_id]
-        print(22222)
         filtered_data = selected_data.filter(test, metric)
-        print(33333)
-        return draw_line(filtered_data)
+        return draw_line(filtered_data, test)
 
     dataset_names = list(datasets.keys())
     first_dataset = datasets[dataset_names[0]]
     default_comparison = list(first_dataset.test_names)[0]
+    print(33333, dataset_names, default_comparison, first_dataset)
     return html.Div(
         children=[
             html.P("blah"),
@@ -107,6 +129,7 @@ def render(app: Dash, datasets: dict[str, Data], ids2, params) -> html.Div:
                         first_dataset.filter(
                             default_comparison, first_dataset.metrics[0]
                         ),
+                        default_comparison,
                     ),
                 ),
             ),

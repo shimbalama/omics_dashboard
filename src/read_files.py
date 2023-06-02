@@ -1,13 +1,12 @@
 from pathlib import Path
 from dataclasses import dataclass, field
 import pandas as pd
-from typing import Protocol
+from typing import Protocol, Optional
 import polars as pl
 from time import time
 import numpy as np
-import numexpr as ne
 import polars as pl
-from collections import Counter
+from collections import Counter, defaultdict
 
 # from .helpers import rubbish
 from functools import partial, reduce
@@ -246,7 +245,7 @@ def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
     return data_dict
 
 
-def read_CPM(path: Path) -> pd.DataFrame:
+def read_CPM(path: Path) -> pl.DataFrame:
     fin = list(path.glob("*.csv"))
     if fin:
         fin = fin.pop()
@@ -307,6 +306,14 @@ def compose(schema: type, *functions: Preprocessor) -> Preprocessor:
     )
 
 
+def description_to_str(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+    df[schema.COMBINED_PROT_DESCRIPTION] = df[schema.COMBINED_PROT_DESCRIPTION].astype(
+        "str"
+    )
+
+    return df
+
+
 def make_gene_col(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     df[schema.GENE] = df[schema.COMBINED_PROT_DESCRIPTION].apply(
         lambda x: [val for val in x.strip().split(" ") if "GN=" in val]
@@ -330,8 +337,6 @@ def make_gene_col_unique(schema: type, df: pd.DataFrame) -> pd.DataFrame:
         else:
             unique_genes.append(gene)
 
-    # genes = list(df[schema.GENE])
-    # unique_genes = [ f"{a}{c[a]}" for c in [Counter()] for a in genes if [c.update([a])] ]
     df[schema.GENE] = unique_genes
     return df
 
@@ -363,7 +368,7 @@ def add_categories(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     return df.T
 
 
-def read_excel(path: Path) -> Data:
+def read_excel(path: Path) -> pd.DataFrame:
     # load the data
     files = [fin for fin in list(path.glob("*xlsx")) if not rubbish(fin.name)]
     assert len(files) == 1
@@ -390,6 +395,7 @@ def split_dfs(df):
 def load_prot_data(path: Path) -> ProtData:
     df = read_excel(path)
     pipe = [
+        description_to_str,
         make_gene_col,
         make_gene_col_unique,
         partial(remove_unwanted_cols, misc=[SchemaProt.GENE]),
@@ -426,6 +432,7 @@ def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
 def load_phospho_data(path: Path) -> PhosphoProtData:
     df = read_excel(path)
     pipe = [
+        description_to_str,
         make_gene_col,  # make_gene_col_unique, can't as are mainnly dups..
         create_unqiue_id,
         partial(remove_unwanted_cols, misc=[SchemaPhos.GENE, SchemaPhos.UNQIUE_ID]),
@@ -440,11 +447,14 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
 
 class SchemaFunction:
     ARRHYTHMIA = "Arrhythmia"
+    CONDITION = "Condition"
+    NORM1 = "Normalisation 1"
+    NORM2 = "Normalisation 2"
     KEY = "key"
     DRUG = "Drug"
     TIME = "Timepoint"
     DOSE = "Dose"
-    POS = "Well Number"
+    WELL = "Well Number"
     FORCE = "Force (uN)"
     RATE = "Rate (bps)"
     TA50 = "Ta50 (s)"
@@ -479,23 +489,99 @@ class FunctionData:
 
     name: str
     df: pd.DataFrame = field(repr=False)
-    dose: pd.DataFrame = field(repr=False)
+    arrhythmia: dict[str, dict[str, int]]
+    dose: Optional[dict[str, str]] | None = None
 
     def filter(self, test: str, metric: str):  # test is drug, here
-        cols = [metric, SchemaFunction.TIME, SchemaFunction.POS]
-        df: pd.DataFrame = self.df.loc[test][cols]
+        drug_df = self.df.query("Drug == @test").copy(deep=True)
+        mapping = get_mappings(
+            drug_df,
+            index_cols=[SchemaFunction.TIME],
+            value_cols=[
+                SchemaFunction.DOSE,
+                SchemaFunction.NORM2,
+                SchemaFunction.NORM1,
+            ],
+        )
+        assert mapping[SchemaFunction.NORM1]["Baseline"] == "Baseline"
+        norm2 = mapping[SchemaFunction.NORM2]["Baseline"]
+        data_cols = [
+            "Force (uN)",
+            "Rate (bps)",
+            "Ta50 (s)",
+            "Tr50 (s)",
+            "Tpeak 85 (s)",
+            "Ta 15-30 (s)",
+            "Ta 30-85 (s)",
+            "Tr 85-50 (s)",
+            "Tr 50-15 (s)",
+        ]
+        normalized_df = self.df.groupby("Drug").apply(self.normalize_group, data_cols)
+        normalized_df = normalized_df.reset_index(level=["Drug"])
+        DMSO = normalized_df.query("Drug == @norm2")
+        normalized_df2 = normalized_df.groupby("Drug").apply(
+            self.normalize_group2, DMSO, data_cols
+        )
+        pipe = [index_copy, index_copy2, zeros, time_and_pos]
+        preprocessor = compose_functiona_data(*pipe)
+        df = preprocessor(normalized_df2)
+        cols = [metric, SchemaFunction.TIME, SchemaFunction.WELL]
+        df: pd.DataFrame = df.loc[test][cols]
         df = df.reset_index()[cols]
         df = df.pivot(
-            index=SchemaFunction.TIME, columns=SchemaFunction.POS, values=metric
+            index=SchemaFunction.TIME, columns=SchemaFunction.WELL, values=metric
         ).T
         df = df[["Baseline", "1", "2", "3", "4", "5"]]
         df.columns = [0, 1, 2, 3, 4, 5]
+        return FunctionData(
+            name=self.name,
+            df=df,
+            arrhythmia=self.arrhythmia,
+            dose=mapping[SchemaFunction.DOSE],
+        )
 
-        return FunctionData(self.name, df, self.dose.loc[test])
+    def normalize_group(self, group, data_cols):
+        drug_data_dict = group.to_dict()
+        norm = {}
+        for data in data_cols:
+            norm[data] = {}
+            for k, v in drug_data_dict[data].items():
+                _, pos = k.split(":")
+                baseline_key = "Baseline:" + pos
+                norm[data][k] = v / drug_data_dict[data][baseline_key]
+        return pd.DataFrame(norm)
+
+    def replace_time(self, df):
+        df[SchemaFunction.TIME] = df.index
+        df[SchemaFunction.TIME] = df[SchemaFunction.TIME].apply(
+            lambda x: x.split(":")[0]
+        )
+        return df
+
+    def normalize_group2(self, group, DMSO, data_cols):
+        group = self.replace_time(group)
+        DMSO = self.replace_time(DMSO)
+        drug_data_dict = group.to_dict()
+        norm = {}
+        for data in data_cols:
+            norm[data] = {}
+            time_point_1 = ""
+            for k, v in drug_data_dict[data].items():
+                time_point_2, _ = k.split(":")
+                if time_point_1 != time_point_2:
+                    mean = DMSO.loc[DMSO["Timepoint"] == time_point_2, data].mean()
+                    time_point_1 = time_point_2
+                norm[data][k] = v / mean
+
+        return pd.DataFrame(norm)
+
+    # @property
+    # def arrhythmia_free_df(self):
+    #     return self.df.query('Arrhythmia == "N"')
 
     @property
     def test_names(self):
-        return set(drug for drug, timepoint in self.df.index[:])
+        return set(self.df[SchemaFunction.DRUG])
 
     @property
     def metrics(self):
@@ -513,121 +599,108 @@ class FunctionData:
         ]
 
 
-def time_str(schema: type, df: pd.DataFrame) -> pd.DataFrame:
-    df[schema.TIME] = df[schema.TIME].astype(str)
+FunctionPreprocessor = Callable[[pd.DataFrame], pd.DataFrame]
+
+
+def compose_functiona_data(*functions: FunctionPreprocessor) -> FunctionPreprocessor:
+    """Helper function to call all df functions sequencially"""
+    return reduce(lambda func1, func2: lambda x: func2(func1(x)), functions)
+
+
+def remove_leading_0(df: pd.DataFrame) -> pd.DataFrame:
+    df[SchemaFunction.WELL] = df[SchemaFunction.WELL].apply(
+        lambda x: x.replace("Pos0", "Pos") if "Pos0" in x else x
+    )
     return df
 
 
-def remove_arrhythmia(schema: type, df: pd.DataFrame) -> pd.DataFrame:
-    if schema.ARRHYTHMIA in df.columns:
+def time_str(df: pd.DataFrame) -> pd.DataFrame:
+    df[SchemaFunction.TIME] = df[SchemaFunction.TIME].astype(str)
+    return df
+
+
+def remove_arrhythmia(df: pd.DataFrame) -> pd.DataFrame:
+    """Experiment 1 Plate 2 has bona fide arrhythmias.
+    This is designated with a Y in the last column instead of an N.
+      For these all parameters need to be omitted from the plot
+      and it would be useful to display arrhythmias for that point
+        eg. 3/6 on the plot. hmmmm
+    """
+    if SchemaFunction.ARRHYTHMIA in df.columns:
         df = df.query('Arrhythmia == "N"')
     return df
 
 
-def key(schema: type, df: pd.DataFrame) -> pd.DataFrame:
-    df[schema.KEY] = df[schema.TIME] + ":" + df[schema.POS]
+def key(df: pd.DataFrame) -> pd.DataFrame:
+    df[SchemaFunction.KEY] = df[SchemaFunction.TIME] + ":" + df[SchemaFunction.WELL]
     return df
 
 
-def del_uneeded(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+def del_uneeded(df: pd.DataFrame) -> pd.DataFrame:
     del df["Plate"]
-    del df["Normalisation 1"]
-    del df["Normalisation 2"]
+    # del df["Normalisation 1"]
+    # del df["Normalisation 2"]
     return df
 
 
-def index_key(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+def index_key(df: pd.DataFrame) -> pd.DataFrame:
     return df.set_index("key")
 
 
-def normalize_group(group, data_cols):
-    drug_data_dict = group.to_dict()
-    norm = {}
-    for data in data_cols:
-        norm[data] = {}
-        for k, v in drug_data_dict[data].items():
-            _, pos = k.split(":")
-            baseline_key = "Baseline:" + pos
-            norm[data][k] = v / drug_data_dict[data][baseline_key]
-    return pd.DataFrame(norm)
-
-
-def replace_time(df):
-    df[SchemaFunction.TIME] = df.index
-    df[SchemaFunction.TIME] = df[SchemaFunction.TIME].apply(lambda x: x.split(":")[0])
-
-    return df
-
-
-def normalize_group2(group, DMSO_, data_cols):
-    group = replace_time(group)
-    DMSO_ = replace_time(DMSO_)
-    drug_data_dict = group.to_dict()
-    norm = {}
-    for data in data_cols:
-        norm[data] = {}
-        for k, v in drug_data_dict[data].items():
-            time, _ = k.split(":")
-            mean = DMSO_.query("Timepoint == @time")[data].mean()
-            norm[data][k] = v / mean
-    return pd.DataFrame(norm)
-
-
-def index_copy(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+def index_copy(df: pd.DataFrame) -> pd.DataFrame:
     df["index_copy"] = df.index
     return df
 
 
-def index_copy2(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+def index_copy2(df: pd.DataFrame) -> pd.DataFrame:
     df["index_copy"] = df["index_copy"].apply(lambda x: x[1])
     return df
 
 
-def zeros(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+def zeros(df: pd.DataFrame) -> pd.DataFrame:
     df = df.fillna(0.0)
     return df
 
 
-def time_and_pos(schema: type, df: pd.DataFrame) -> pd.DataFrame:
-    df[[SchemaFunction.TIME, SchemaFunction.POS]] = df["index_copy"].str.split(
+def time_and_pos(df: pd.DataFrame) -> pd.DataFrame:
+    df[[SchemaFunction.TIME, SchemaFunction.WELL]] = df["index_copy"].str.split(
         ":", expand=True
     )
     return df
 
 
-def dose(df):
-    df = df[[SchemaFunction.DRUG, SchemaFunction.DOSE, SchemaFunction.TIME]]
-    return df.set_index([SchemaFunction.DRUG, SchemaFunction.TIME])
+def get_mappings(df, index_cols, value_cols):
+    df = df[index_cols + value_cols]
+    return df.set_index(index_cols).to_dict()
+
+
+def find_arrhythmias(df):
+    counts = (
+        df[[SchemaFunction.DRUG, SchemaFunction.DOSE, SchemaFunction.ARRHYTHMIA]]
+        .groupby("Drug")
+        .value_counts()
+        .to_frame()
+        .reset_index()
+    )
+
+    # arrhythmias: {}
+    # for d in counts:
+    #     for drug_dose_YN, count in d.items():
+    #         if arrhythmia == "Y":
+    #             drug, dose = drug_dose
+    #             arrhythmias[drug][dose] += 1
+
+    return counts
 
 
 def load_function_data(path: Path) -> PhosphoProtData:
     df = read_excel(path)
-    pipe = [time_str, remove_arrhythmia, key, del_uneeded, index_key]
-    preprocessor = compose(SchemaFunction, *pipe)
+    arrhythmias = find_arrhythmias(df)
+    pipe = [remove_leading_0, time_str, remove_arrhythmia, key, del_uneeded, index_key]
+    preprocessor = compose_functiona_data(*pipe)
     df = preprocessor(df)
-    dose_df = dose(df)
-    data_cols = [
-        "Force (uN)",
-        "Rate (bps)",
-        "Ta50 (s)",
-        "Tr50 (s)",
-        "Tpeak 85 (s)",
-        "Ta 15-30 (s)",
-        "Ta 30-85 (s)",
-        "Tr 85-50 (s)",
-        "Tr 50-15 (s)",
-    ]
-    normalized_df = df.groupby("Drug").apply(normalize_group, data_cols)
-    normalized_df = normalized_df.reset_index(level=["Drug"])
-    DMSO = normalized_df.query('Drug == "DMSO 1"')
-    normalized_df2 = normalized_df.groupby("Drug").apply(
-        normalize_group2, DMSO, data_cols
-    )
-    pipe = [index_copy, index_copy2, zeros, time_and_pos]
-    preprocessor = compose(SchemaFunction, *pipe)
-    df = preprocessor(normalized_df2)
-    df.to_csv("~/Downloads/func111.csv")
-    return FunctionData(path.stem, df, dose_df)
+
+    return FunctionData(name=path.stem, df=df, arrhythmia=arrhythmias)
 
 
 # load_prot_data(Path("/Users/liam/code/omics_dashboard/data/proteomics/FibrosisStim/"))
