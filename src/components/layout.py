@@ -74,16 +74,16 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                             sub_tab_layout(app, data, "Input_files", text_tab2),
                         ),
                         tab_layout(
-                            "RNAseq (bulk)",
+                            "RNA",
                             "subtabs_id1",
                             sub_tab_layout(app, data["rna_bulk"], "CPM", box_tabs),
                             sub_tab_layout(
                                 app, data["rna_bulk"], "Volcano", rna_processed_tab
                             ),
+                            sub_tab_layout(app, data, "scRNA", text_tab1),
                         ),
-                        tab_layout("RNA_single_cell", "subtabs_id2"),
                         tab_layout(
-                            "Phospho/proteomics",
+                            "Protein",
                             "subtabs_id4",
                             sub_tab_layout(
                                 app, data["proteomics"], "Proteins", box_tabs
@@ -96,10 +96,10 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                             ),
                         ),
                         tab_layout(
-                            "Function",
+                            "Other",
                             "subtabs_id5",
                             sub_tab_layout(
-                                app, data["function"], "Function", function_tab
+                                app, data["function"]['test'], "Function", function_tab
                             ),
                         ),
                     ],

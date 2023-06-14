@@ -371,7 +371,10 @@ def add_categories(schema: type, df: pd.DataFrame) -> pd.DataFrame:
 def read_excel(path: Path) -> pd.DataFrame:
     # load the data
     files = [fin for fin in list(path.glob("*xlsx")) if not rubbish(fin.name)]
-    assert len(files) == 1
+    if len(files) != 1:
+        raise ValueError(
+            f"The len of input should be one but it is {len(files)}; {files}"
+        )
     return pd.read_excel(files[0])
     # pls caused too many dramas ie The current offset in the file is 3909947 bytes.
     # can't handle values like 0.001000
@@ -464,6 +467,10 @@ class SchemaFunction:
     TA_30_85 = "Ta 30-85 (s)"
     TR_85_50 = "Tr 85-50 (s)"
     TR_50_15 = "Tr 50-15 (s)"
+    RR_SCAT = "RRscat (s)"
+    DATASET = 'dataset'
+
+
 
 
 @dataclass(slots=True, frozen=True)
@@ -487,44 +494,18 @@ class FunctionData:
         lengths of homolymers
     """
 
-    name: str
     df: pd.DataFrame = field(repr=False)
-    arrhythmia: dict[str, dict[str, int]]
-    dose: Optional[dict[str, str]] | None = None
+    arrhythmia: pd.DataFrame = field(repr=False)
+    filtered_data: list[str, pd.DataFrame, dict[str, str], pd.DataFrame] | None = None
+    name: str = "Funky"
 
-    def filter(self, test: str, metric: str):  # test is drug, here
-        drug_df = self.df.query("Drug == @test").copy(deep=True)
-        mapping = get_mappings(
-            drug_df,
-            index_cols=[SchemaFunction.TIME],
-            value_cols=[
-                SchemaFunction.DOSE,
-                SchemaFunction.NORM2,
-                SchemaFunction.NORM1,
-            ],
-        )
-        assert mapping[SchemaFunction.NORM1]["Baseline"] == "Baseline"
-        norm2 = mapping[SchemaFunction.NORM2]["Baseline"]
-        data_cols = [
-            "Force (uN)",
-            "Rate (bps)",
-            "Ta50 (s)",
-            "Tr50 (s)",
-            "Tpeak 85 (s)",
-            "Ta 15-30 (s)",
-            "Ta 30-85 (s)",
-            "Tr 85-50 (s)",
-            "Tr 50-15 (s)",
-        ]
-        normalized_df = self.df.groupby("Drug").apply(self.normalize_group, data_cols)
-        normalized_df = normalized_df.reset_index(level=["Drug"])
-        DMSO = normalized_df.query("Drug == @norm2")
-        normalized_df2 = normalized_df.groupby("Drug").apply(
-            self.normalize_group2, DMSO, data_cols
-        )
-        pipe = [index_copy, index_copy2, zeros, time_and_pos]
-        preprocessor = compose_functiona_data(*pipe)
-        df = preprocessor(normalized_df2)
+    def filter(
+        self, test: str, metric: str, conditions: str, datasets: str
+    ):  # test is drug, here - & Condition == @conditions & dataset == @datasets
+        filt = "Drug == @test"
+        drug_df = self.df.query(filt).copy(deep=True)
+
+
         cols = [metric, SchemaFunction.TIME, SchemaFunction.WELL]
         df: pd.DataFrame = df.loc[test][cols]
         df = df.reset_index()[cols]
@@ -533,70 +514,42 @@ class FunctionData:
         ).T
         df = df[["Baseline", "1", "2", "3", "4", "5"]]
         df.columns = [0, 1, 2, 3, 4, 5]
+
+        
+        dfs.append(
+            (
+                dataset,
+                df,
+                mapping[SchemaFunction.DOSE],
+                self.arrhythmia.query(filt).copy(deep=True),
+            )
+        )
+
         return FunctionData(
             name=self.name,
-            df=df,
             arrhythmia=self.arrhythmia,
-            dose=mapping[SchemaFunction.DOSE],
+            df=drug_df,
+            filtered_data=dfs,
         )
 
-    def normalize_group(self, group, data_cols):
-        drug_data_dict = group.to_dict()
-        norm = {}
-        for data in data_cols:
-            norm[data] = {}
-            for k, v in drug_data_dict[data].items():
-                _, pos = k.split(":")
-                baseline_key = "Baseline:" + pos
-                norm[data][k] = v / drug_data_dict[data][baseline_key]
-        return pd.DataFrame(norm)
 
-    def replace_time(self, df):
-        df[SchemaFunction.TIME] = df.index
-        df[SchemaFunction.TIME] = df[SchemaFunction.TIME].apply(
-            lambda x: x.split(":")[0]
-        )
-        return df
-
-    def normalize_group2(self, group, DMSO, data_cols):
-        group = self.replace_time(group)
-        DMSO = self.replace_time(DMSO)
-        drug_data_dict = group.to_dict()
-        norm = {}
-        for data in data_cols:
-            norm[data] = {}
-            time_point_1 = ""
-            for k, v in drug_data_dict[data].items():
-                time_point_2, _ = k.split(":")
-                if time_point_1 != time_point_2:
-                    mean = DMSO.loc[DMSO["Timepoint"] == time_point_2, data].mean()
-                    time_point_1 = time_point_2
-                norm[data][k] = v / mean
-
-        return pd.DataFrame(norm)
-
-    # @property
-    # def arrhythmia_free_df(self):
-    #     return self.df.query('Arrhythmia == "N"')
-
+    @property
+    def dataset_names(self):
+        return set(self.df[SchemaFunction.DATASET])
+    
+    @property
+    def condition_names(self):
+        return set(self.df[SchemaFunction.CONDITION])
+    
     @property
     def test_names(self):
         return set(self.df[SchemaFunction.DRUG])
 
     @property
     def metrics(self):
-        return [
-            "Force (uN)",
-            "Rate (bps)",
-            "Ta50 (s)",
-            "Tr50 (s)",
-            "Tpeak 85 (s)",
-            "Ta 15-30 (s)",
-            "Ta 30-85 (s)",
-            "Tr 85-50 (s)",
-            "Tr 50-15 (s)",
-            "RRscat (s)",
-        ]
+        return [name for schema, name in vars(SchemaFunction).items() if "__" not in schema][9:-1]
+
+
 
 
 FunctionPreprocessor = Callable[[pd.DataFrame], pd.DataFrame]
@@ -646,6 +599,9 @@ def del_uneeded(df: pd.DataFrame) -> pd.DataFrame:
 def index_key(df: pd.DataFrame) -> pd.DataFrame:
     return df.set_index("key")
 
+def add_dataset_name(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    df[SchemaFunction.DATASET] = name
+    return df
 
 def index_copy(df: pd.DataFrame) -> pd.DataFrame:
     df["index_copy"] = df.index
@@ -675,7 +631,7 @@ def get_mappings(df, index_cols, value_cols):
 
 
 def find_arrhythmias(df):
-    counts = (
+    return (
         df[[SchemaFunction.DRUG, SchemaFunction.DOSE, SchemaFunction.ARRHYTHMIA]]
         .groupby("Drug")
         .value_counts()
@@ -683,24 +639,91 @@ def find_arrhythmias(df):
         .reset_index()
     )
 
-    # arrhythmias: {}
-    # for d in counts:
-    #     for drug_dose_YN, count in d.items():
-    #         if arrhythmia == "Y":
-    #             drug, dose = drug_dose
-    #             arrhythmias[drug][dose] += 1
+def metric_names():
+    return [name for schema, name in vars(SchemaFunction).items() if "__" not in schema][9:-2]
 
-    return counts
 
+def normalize_group(group):
+        drug_data_dict = group.to_dict()
+        norm = {}
+        for data in metric_names():
+            norm[data] = {}
+            for k, v in drug_data_dict[data].items():
+                _, pos = k.split(":")
+                baseline_key = "Baseline:" + pos
+                norm[data][k] = v / drug_data_dict[data][baseline_key]
+        return pd.DataFrame(norm)
+
+def replace_time(df):
+    df[SchemaFunction.TIME] = df.index
+    df[SchemaFunction.TIME] = df[SchemaFunction.TIME].apply(
+        lambda x: x.split(":")[0]
+    )
+    return df
+
+def normalize_group2(group, DMSO):
+    group = replace_time(group)
+    DMSO = replace_time(DMSO)
+    drug_data_dict = group.to_dict()
+    norm = {}
+    for data in metric_names():
+        norm[data] = {}
+        time_point_1 = ""
+        for k, v in drug_data_dict[data].items():
+            time_point_2, _ = k.split(":")
+            if time_point_1 != time_point_2:
+                mean = DMSO.loc[DMSO["Timepoint"] == time_point_2, data].mean()
+                time_point_1 = time_point_2
+            norm[data][k] = v / mean
+
+    return pd.DataFrame(norm)
 
 def load_function_data(path: Path) -> PhosphoProtData:
-    df = read_excel(path)
-    arrhythmias = find_arrhythmias(df)
-    pipe = [remove_leading_0, time_str, remove_arrhythmia, key, del_uneeded, index_key]
-    preprocessor = compose_functiona_data(*pipe)
-    df = preprocessor(df)
+    files = [fin for fin in list(path.glob("*xlsx")) if not rubbish(fin.name)]
+    dfs = []
+    arrhythmias = []
+    for fin in files:
+        df = pd.read_excel(fin)
+        arrhythmias.append(find_arrhythmias(df))
+        pipe = [
+            remove_leading_0,
+            time_str,
+            remove_arrhythmia,
+            key,
+            del_uneeded,
+            index_key,
+            partial(add_dataset_name, name=fin.stem)
+        ]
+        preprocessor = compose_functiona_data(*pipe)
+        df = preprocessor(df)
+        normalized_df = df.groupby("Drug").apply(normalize_group)
+        normalized_df = normalized_df.reset_index(level=["Drug"])
 
-    return FunctionData(name=path.stem, df=df, arrhythmia=arrhythmias)
+        sub_dfs = []
+        for _, drug_df in df.groupby(SchemaFunction.DRUG):
+            mapping = get_mappings(
+                drug_df,
+                index_cols=[SchemaFunction.TIME],
+                value_cols=[
+                    SchemaFunction.DOSE,
+                    SchemaFunction.NORM2,
+                    SchemaFunction.NORM1,
+                ],
+            )
+            assert mapping[SchemaFunction.NORM1]["Baseline"] == "Baseline"
+            norm2 = mapping[SchemaFunction.NORM2]["Baseline"]
+            DMSO = normalized_df.query("Drug == @norm2")
+            normalized_df2 = drug_df.groupby("Drug").apply(
+                normalize_group2, DMSO
+            )
+            pipe = [index_copy, index_copy2, zeros, time_and_pos]
+            preprocessor = compose_functiona_data(*pipe)
+            sub_dfs.append(preprocessor(normalized_df2))
+        dfs.append(pd.concat(sub_dfs))#TODO - this is now missing some required cols
+    df = pd.concat(dfs)
+    arrhythmia = pd.concat(arrhythmias)
+    df.to_csv("~/Downloads/ttggg.csv")
+    return FunctionData(df=df, arrhythmia=arrhythmia)
 
 
 # load_prot_data(Path("/Users/liam/code/omics_dashboard/data/proteomics/FibrosisStim/"))
