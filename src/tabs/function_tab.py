@@ -33,8 +33,9 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
         figs = []
-        for name, df, dose, arrhythmia in filtered_data.filtered_data:
-            print("name, df, dose, arrhythmia", name, df, dose, arrhythmia)
+        print('filtered_data',filtered_data)
+        for name, df, arrhythmia, dose in filtered_data.discreet_datasets():
+            print("name, df, dose, arrhythmia", name, df, arrhythmia, dose)
 
             datas = df.describe().to_dict()
             dose["0"] = 0
@@ -62,8 +63,8 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
                 size_max=60,
             )
             fig1.update_traces(textposition="top left")
-            figs.append(fig1)
-        fig1 = figs[0]
+            figs.append(fig1.data[0])
+        print(1111111,figs)
 
         # y = data.df[list(range(1, len(data.df.columns)))].to_numpy()
         # print(y,y.shape, xs, y.shape[0],len(xs), sep='\n')
@@ -83,14 +84,14 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
         # x_fit = np.linspace(min(x), max(x), len(x))
         # y_fit = sigmoid(x_fit, *popt)
         # fig2 = px.line(data.df, x=x_fit, y=y_fit)
-        # fig3 = go.Figure(data=fig1.data + fig2.data)
-
-        # fig3.update_xaxes(type="log")
-        # fig3.update_yaxes(range=[0, 1.5])
-        fig1.update_xaxes(type="log")
+        #fig3 = go.Figure(data=fig1.data + fig2.data)
+        fig3 = go.Figure(data=figs)
+        fig3.update_xaxes(type="log")
+        fig3.update_yaxes(range=[0, 1.5])
+        #fig1.update_xaxes(type="log")
         max_y = max(ys) if max(ys) > 1.5 else 1.5
 
-        fig1.update_yaxes(range=[-0.1, max_y])
+        fig3.update_yaxes(range=[-0.2, max_y + 0.2])
 
         return fig1
 
@@ -98,14 +99,16 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
 
     @app.callback(
         Output("func_plot", "figure"),
-        Input("func_test_drop", "value"),
+        Input("func_drug_drop", "value"),
         Input("func_metric_drop", "value"),
-        Input("func_DATA_DROP", "value"),
-        Input("func_condition_DROP", "value"),
+        Input("func_DATA_DROP", "options"),
+        Input("func_condition_DROP", "options"),
     )
-    def update_graph(test: str, metric: str, datasets, conditions):
+    def update_graph(test: str, metric: str, datasets: list[str], conditions: list[str]):
         """Update rendering of data points upon changing x-value of vertical dashed lines."""
-        filtered_data: Data = dataset.filter(test, metric, datasets, conditions)
+        print(1111111111111111112)
+        filtered_data: Data = dataset.filter(test, datasets, conditions, metric)
+
         return draw_line(filtered_data)
 
     default_comparison = list(dataset.test_names)[0]
@@ -146,9 +149,9 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
                     figure=draw_line(
                         dataset.filter(
                             default_comparison,
-                            dataset.metrics[0],
                             list(dataset.dataset_names),
                             list(dataset.condition_names),
+                            dataset.metrics[0],
                         ),
                     ),
                 ),

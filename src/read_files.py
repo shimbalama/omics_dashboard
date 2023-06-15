@@ -468,9 +468,7 @@ class SchemaFunction:
     TR_85_50 = "Tr 85-50 (s)"
     TR_50_15 = "Tr 50-15 (s)"
     RR_SCAT = "RRscat (s)"
-    DATASET = 'dataset'
-
-
+    DATASET = "dataset"
 
 
 @dataclass(slots=True, frozen=True)
@@ -495,61 +493,74 @@ class FunctionData:
     """
 
     df: pd.DataFrame = field(repr=False)
-    arrhythmia: pd.DataFrame = field(repr=False)
-    filtered_data: list[str, pd.DataFrame, dict[str, str], pd.DataFrame] | None = None
     name: str = "Funky"
+    metric: str | None = None
+    drug: str | None = None
 
     def filter(
-        self, test: str, metric: str, conditions: str, datasets: str
+        self, test: str, conditions: list[str], datasets: list[str], metric: str
     ):  # test is drug, here - & Condition == @conditions & dataset == @datasets
         filt = "Drug == @test"
-        drug_df = self.df.query(filt).copy(deep=True)
+        print(12121212, self.df.shape)
+        df = self.df.query(filt).copy(deep=True)
+        print(12121212333333, df.shape)
+        return FunctionData(name=datasets, df=df, metric=metric, drug=test)
 
-
-        cols = [metric, SchemaFunction.TIME, SchemaFunction.WELL]
-        df: pd.DataFrame = df.loc[test][cols]
+    def _create_pivot_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        cols = [self.metric, SchemaFunction.TIME, SchemaFunction.WELL]
+        df: pd.DataFrame = df[cols]
         df = df.reset_index()[cols]
         df = df.pivot(
-            index=SchemaFunction.TIME, columns=SchemaFunction.WELL, values=metric
+            index=SchemaFunction.TIME, columns=SchemaFunction.WELL, values=self.metric
         ).T
         df = df[["Baseline", "1", "2", "3", "4", "5"]]
         df.columns = [0, 1, 2, 3, 4, 5]
 
-        
-        dfs.append(
-            (
-                dataset,
+        return df
+
+    def _arrhythmias(self, df: pd.DataFrame) -> pd.DataFrame:
+        return (
+            df[[SchemaFunction.DRUG, SchemaFunction.DOSE, SchemaFunction.ARRHYTHMIA]]
+            .groupby(SchemaFunction.DRUG)
+            .value_counts()
+            .to_frame()
+            .reset_index()
+        )
+
+    def discreet_datasets(self) -> list[str, pd.DataFrame, pd.DataFrame, dict[str, float]]:
+        res = []
+        print(666666666, self.df.head())
+        for name, df in self.df.groupby(SchemaFunction.DATASET):
+            print(333333333333,name, df)
+            mapping = get_mappings(
                 df,
-                mapping[SchemaFunction.DOSE],
-                self.arrhythmia.query(filt).copy(deep=True),
+                index_cols=[SchemaFunction.TIME],
+                value_cols=[
+                    SchemaFunction.DOSE,
+                ],
             )
-        )
-
-        return FunctionData(
-            name=self.name,
-            arrhythmia=self.arrhythmia,
-            df=drug_df,
-            filtered_data=dfs,
-        )
-
+            res.append((name, self._create_pivot_df(df), self._arrhythmias(
+                df
+            ), mapping[SchemaFunction.DOSE]))
+        return res
 
     @property
     def dataset_names(self):
         return set(self.df[SchemaFunction.DATASET])
-    
+
     @property
     def condition_names(self):
         return set(self.df[SchemaFunction.CONDITION])
-    
+
     @property
     def test_names(self):
         return set(self.df[SchemaFunction.DRUG])
 
     @property
     def metrics(self):
-        return [name for schema, name in vars(SchemaFunction).items() if "__" not in schema][9:-1]
-
-
+        return [
+            name for schema, name in vars(SchemaFunction).items() if "__" not in schema
+        ][9:-1]
 
 
 FunctionPreprocessor = Callable[[pd.DataFrame], pd.DataFrame]
@@ -599,9 +610,17 @@ def del_uneeded(df: pd.DataFrame) -> pd.DataFrame:
 def index_key(df: pd.DataFrame) -> pd.DataFrame:
     return df.set_index("key")
 
+
 def add_dataset_name(df: pd.DataFrame, name: str) -> pd.DataFrame:
     df[SchemaFunction.DATASET] = name
     return df
+
+
+def put_required_cols_back(df: pd.DataFrame, original_df: pd.DataFrame) -> pd.DataFrame:
+    original_df = original_df[[col for col in original_df if col not in df.columns]]
+    df = df.join(original_df, how="inner")
+    return df
+
 
 def index_copy(df: pd.DataFrame) -> pd.DataFrame:
     df["index_copy"] = df.index
@@ -639,27 +658,30 @@ def find_arrhythmias(df):
         .reset_index()
     )
 
+
 def metric_names():
-    return [name for schema, name in vars(SchemaFunction).items() if "__" not in schema][9:-2]
+    return [
+        name for schema, name in vars(SchemaFunction).items() if "__" not in schema
+    ][9:-2]
 
 
 def normalize_group(group):
-        drug_data_dict = group.to_dict()
-        norm = {}
-        for data in metric_names():
-            norm[data] = {}
-            for k, v in drug_data_dict[data].items():
-                _, pos = k.split(":")
-                baseline_key = "Baseline:" + pos
-                norm[data][k] = v / drug_data_dict[data][baseline_key]
-        return pd.DataFrame(norm)
+    drug_data_dict = group.to_dict()
+    norm = {}
+    for data in metric_names():
+        norm[data] = {}
+        for k, v in drug_data_dict[data].items():
+            _, pos = k.split(":")
+            baseline_key = "Baseline:" + pos
+            norm[data][k] = v / drug_data_dict[data][baseline_key]
+    return pd.DataFrame(norm)
+
 
 def replace_time(df):
     df[SchemaFunction.TIME] = df.index
-    df[SchemaFunction.TIME] = df[SchemaFunction.TIME].apply(
-        lambda x: x.split(":")[0]
-    )
+    df[SchemaFunction.TIME] = df[SchemaFunction.TIME].apply(lambda x: x.split(":")[0])
     return df
+
 
 def normalize_group2(group, DMSO):
     group = replace_time(group)
@@ -678,13 +700,15 @@ def normalize_group2(group, DMSO):
 
     return pd.DataFrame(norm)
 
+
 def load_function_data(path: Path) -> PhosphoProtData:
     files = [fin for fin in list(path.glob("*xlsx")) if not rubbish(fin.name)]
     dfs = []
-    arrhythmias = []
+    # arrhythmias = []
     for fin in files:
         df = pd.read_excel(fin)
-        arrhythmias.append(find_arrhythmias(df))
+       
+        # arrhythmias.append(find_arrhythmias(df))
         pipe = [
             remove_leading_0,
             time_str,
@@ -692,20 +716,18 @@ def load_function_data(path: Path) -> PhosphoProtData:
             key,
             del_uneeded,
             index_key,
-            partial(add_dataset_name, name=fin.stem)
         ]
         preprocessor = compose_functiona_data(*pipe)
         df = preprocessor(df)
         normalized_df = df.groupby("Drug").apply(normalize_group)
         normalized_df = normalized_df.reset_index(level=["Drug"])
-
+        normalized_df.to_csv("~/Downloads/normalized_dfgg.csv")
         sub_dfs = []
-        for _, drug_df in df.groupby(SchemaFunction.DRUG):
+        for name, drug_df in df.groupby(SchemaFunction.DRUG):
             mapping = get_mappings(
                 drug_df,
                 index_cols=[SchemaFunction.TIME],
                 value_cols=[
-                    SchemaFunction.DOSE,
                     SchemaFunction.NORM2,
                     SchemaFunction.NORM1,
                 ],
@@ -713,17 +735,23 @@ def load_function_data(path: Path) -> PhosphoProtData:
             assert mapping[SchemaFunction.NORM1]["Baseline"] == "Baseline"
             norm2 = mapping[SchemaFunction.NORM2]["Baseline"]
             DMSO = normalized_df.query("Drug == @norm2")
-            normalized_df2 = drug_df.groupby("Drug").apply(
-                normalize_group2, DMSO
-            )
-            pipe = [index_copy, index_copy2, zeros, time_and_pos]
+            normalized_df2 = normalize_group2(normalized_df.query('Drug == @name'), DMSO)
+            #normalized_df2 = normalized_df2.reset_index(level=["Drug"])
+            pipe = [
+                index_copy,
+                zeros,
+                time_and_pos,
+                partial(add_dataset_name, name=fin.stem),
+                partial(put_required_cols_back, original_df=drug_df),
+            ]
             preprocessor = compose_functiona_data(*pipe)
-            sub_dfs.append(preprocessor(normalized_df2))
-        dfs.append(pd.concat(sub_dfs))#TODO - this is now missing some required cols
+            normalized_df2 = preprocessor(normalized_df2)
+            sub_dfs.append(normalized_df2)
+        dfs.append(pd.concat(sub_dfs))
     df = pd.concat(dfs)
-    arrhythmia = pd.concat(arrhythmias)
+    # arrhythmia = pd.concat(arrhythmias)
     df.to_csv("~/Downloads/ttggg.csv")
-    return FunctionData(df=df, arrhythmia=arrhythmia)
+    return FunctionData(df=df)
 
 
 # load_prot_data(Path("/Users/liam/code/omics_dashboard/data/proteomics/FibrosisStim/"))
