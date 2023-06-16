@@ -1,9 +1,8 @@
 from pathlib import Path
 from dataclasses import dataclass, field
 import pandas as pd
-from typing import Protocol, Optional
+from typing import Protocol
 import polars as pl
-from time import time
 import numpy as np
 import polars as pl
 from collections import Counter, defaultdict
@@ -21,10 +20,10 @@ class Data(Protocol):
     def filter():
         ...
 
-    def point_of_reference():
+    def point_of_reference():#still?
         ...
 
-    def pandas_df():
+    def pandas_df():#maybe plot df?
         ...
 
 
@@ -499,11 +498,9 @@ class FunctionData:
 
     def filter(
         self, test: str, conditions: list[str], datasets: list[str], metric: str
-    ):  # test is drug, here - & Condition == @conditions & dataset == @datasets
-        filt = "Drug == @test"
-        print(12121212, self.df.shape)
+    ):  # test is drug, here 
+        filt = "Drug == @test & Condition == @conditions & dataset == @datasets"
         df = self.df.query(filt).copy(deep=True)
-        print(12121212333333, df.shape)
         return FunctionData(name=datasets, df=df, metric=metric, drug=test)
 
     def _create_pivot_df(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -527,11 +524,37 @@ class FunctionData:
             .reset_index()
         )
 
-    def discreet_datasets(self) -> list[str, pd.DataFrame, pd.DataFrame, dict[str, float]]:
-        res = []
-        print(666666666, self.df.head())
+    def _get_mean_values(
+        self, df: pd.DataFrame, dose: dict[str, float]
+    ) -> tuple[list[str], list[str], list[str]]:
+        datas = df.describe().to_dict()
+        xs = [dose[str(time_point)] for time_point in list(datas.keys())]
+        ys = [v.get("50%") for v in datas.values()]
+        stds = [v.get("std") for v in datas.values()]
+
+        return xs, ys, stds
+
+    def _get_arrhythmia_counts(self, df, xs):
+        arrhythmia = self._arrhythmias(df)
+        arrhythmia_counts: list[str] = []
+        for x in xs:
+            arrhythmia_at_dose = arrhythmia.query("Dose == @x")
+            dd: dict[str, int] = dict(
+                zip(arrhythmia_at_dose["Arrhythmia"], arrhythmia_at_dose["count"])
+            )
+            total = sum(dd.values())
+            non_arrhythmic: int = total - dd.get("Y", 0)
+            arrhythmia_counts.append(f"{str(non_arrhythmic)}/{str(total)}")
+
+        return arrhythmia_counts
+
+    @property
+    def plot_data(self):
+        i = 0
+        tmp_d = defaultdict(list)
+
         for name, df in self.df.groupby(SchemaFunction.DATASET):
-            print(333333333333,name, df)
+            i += 1
             mapping = get_mappings(
                 df,
                 index_cols=[SchemaFunction.TIME],
@@ -539,22 +562,35 @@ class FunctionData:
                     SchemaFunction.DOSE,
                 ],
             )
-            res.append((name, self._create_pivot_df(df), self._arrhythmias(
-                df
-            ), mapping[SchemaFunction.DOSE]))
-        return res
+            condition = set(df[SchemaFunction.CONDITION])
+            assert len(condition) == 1
+            pivot_df = self._create_pivot_df(df)
 
-    @property
-    def dataset_names(self):
-        return set(self.df[SchemaFunction.DATASET])
+            dose = mapping[SchemaFunction.DOSE]
+            dose["0"] = 0
 
-    @property
-    def condition_names(self):
-        return set(self.df[SchemaFunction.CONDITION])
+            xs, ys, stds = self._get_mean_values(pivot_df, dose)
+            arrhythmia_counts = self._get_arrhythmia_counts(df, xs)
+            # # https://www.statology.org/sigmoid-function-python/
+            # # https://datagy.io/sigmoid-function-python/
+
+            tmp_d[self.drug] += xs
+            tmp_d[self.metric] += ys
+            tmp_d["stds"] += stds
+            tmp_d["arrhythmia_counts"] += arrhythmia_counts
+            tmp_d["name & condition"] += [f"{name}, {condition.pop()}"] * len(xs)
+        df = pd.DataFrame.from_dict(tmp_d)
+        return df
+
+    def possible_dataset_names(self, drug: str) -> list[str]:
+        return list(set(self.df.query('Drug == @drug')[SchemaFunction.DATASET]))
+
+    def possible_condition_names(self, drug: str) -> list[str]:
+        return list(set(self.df.query('Drug == @drug')[SchemaFunction.CONDITION]))
 
     @property
     def test_names(self):
-        return set(self.df[SchemaFunction.DRUG])
+        return sorted(set(self.df[SchemaFunction.DRUG]))
 
     @property
     def metrics(self):
@@ -707,7 +743,7 @@ def load_function_data(path: Path) -> PhosphoProtData:
     # arrhythmias = []
     for fin in files:
         df = pd.read_excel(fin)
-       
+
         # arrhythmias.append(find_arrhythmias(df))
         pipe = [
             remove_leading_0,
@@ -735,8 +771,10 @@ def load_function_data(path: Path) -> PhosphoProtData:
             assert mapping[SchemaFunction.NORM1]["Baseline"] == "Baseline"
             norm2 = mapping[SchemaFunction.NORM2]["Baseline"]
             DMSO = normalized_df.query("Drug == @norm2")
-            normalized_df2 = normalize_group2(normalized_df.query('Drug == @name'), DMSO)
-            #normalized_df2 = normalized_df2.reset_index(level=["Drug"])
+            normalized_df2 = normalize_group2(
+                normalized_df.query("Drug == @name"), DMSO
+            )
+            # normalized_df2 = normalized_df2.reset_index(level=["Drug"])
             pipe = [
                 index_copy,
                 zeros,
