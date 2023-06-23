@@ -23,7 +23,8 @@ READERS = {
 }
 
 
-def read_all(path: Path):  # might have to chnage htis to read on demand??
+def read_all(path: Path): # might have to chnage htis to read on demand??
+    
     return path.name, {
         sub_path.name: READERS.get(path.name)(sub_path)
         for sub_path in path.glob("*")

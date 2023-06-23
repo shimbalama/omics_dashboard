@@ -17,10 +17,11 @@ def rubbish(name: str) -> bool:
 
 
 class Data(Protocol):
+    
     def filter():
         ...
 
-    def point_of_reference():#still?
+    def point_of_reference():#still?TODO
         ...
 
     def pandas_df():#maybe plot df?
@@ -68,6 +69,7 @@ class ProtData:
     @property
     def test_names(self):
         return set(self.df["test"])
+    
 
 
 @dataclass(slots=True, frozen=True)
