@@ -74,7 +74,7 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
     test and overlays the respective FDR value"""
     
     df: pd.DataFrame = data.pandas_df
-    print(11111,data, df.head(), sep="\n")
+    print(11111,y_gene, data, df.head(), data.df_FDR.head(), sep="\n")
     fig = px.box(
         df,
         x=params.X,
@@ -88,41 +88,51 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
         labels={y_gene: "CPM"},
         facet_row_spacing=0.75,
     )
-    if "test" in set(df.columns):
-        FDRs: dict[str, float] = data.df_FDR[y_gene].to_dict()#TODO - make all FDR uniform here. filter in filter?
-        median_CPMs = {
-            test: np.median(df.loc[df["test"] == test, y_gene])
-            for test in np.unique(df["test"])
-        }
-        unique_comparisons = df["test"].unique()
-        y_range = get_y_range(len(unique_comparisons))
-        if data.point_of_reference in unique_comparisons:
-            point_of_reference_index = [
-                i
-                for i, test in enumerate(unique_comparisons)
-                if test == data.point_of_reference
-            ]
-            assert len(point_of_reference_index) == 1
-            add_FDR_brackets_partial = partial(
-                add_FDR_brackets, point_of_reference_index[0], y_range, 1.01, "black"
-            )
-            for i, test in enumerate(unique_comparisons):
-                if test == data.point_of_reference:
-                    assert i == point_of_reference_index[0]
-                    continue
-                FDR = FDRs.get(test, 0.0)
-                y = median_CPMs[test]
-                fig.add_annotation(
-                    x=test,
-                    y=y,
-                    text=f"{FDR:.1e}",
-                    yshift=10,
-                    showarrow=False,
-                )
-                fig = add_FDR_brackets_partial(fig, FDR, i)
-            fig.update_layout(margin=dict(t=i * 33))
+
+    if 'gene' in df.columns:
+        for y_gene in set(df['gene']):
+            fig = make_brackets(fig, df, y_gene, data)
+    else:
+        fig = make_brackets(fig, df, y_gene, data)
 
     return html.Div(dcc.Graph(figure=fig), id=plot_id)
+
+def make_brackets(fig, df, gene, data):
+
+    FDRs: dict[str, float] = data.df_FDR[gene].to_dict()
+    median_CPMs = {
+        test: np.median(df.loc[df["test"] == test, gene])#TODO - make all FDR uniform here. filter in filter?
+        for test in np.unique(df["test"])
+    }
+    unique_comparisons = df["test"].unique()
+    y_range = get_y_range(len(unique_comparisons))
+    if data.point_of_reference in unique_comparisons:
+        point_of_reference_index = [
+            i
+            for i, test in enumerate(unique_comparisons)
+            if test == data.point_of_reference
+        ]
+        assert len(point_of_reference_index) == 1
+        add_FDR_brackets_partial = partial(
+            add_FDR_brackets, point_of_reference_index[0], y_range, 1.01, "black"
+        )
+        for i, test in enumerate(unique_comparisons):
+            if test == data.point_of_reference:
+                assert i == point_of_reference_index[0]
+                continue
+            FDR = FDRs.get(test, 0.0)
+            y = median_CPMs[test]
+            fig.add_annotation(
+                x=test,
+                y=y,
+                text=f"{FDR:.1e}",
+                yshift=10,
+                showarrow=False,
+            )
+            fig = add_FDR_brackets_partial(fig, FDR, i)
+        fig.update_layout(margin=dict(t=i * 33))
+
+    return fig
 
 
 def add_FDR_brackets(

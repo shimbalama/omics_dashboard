@@ -96,6 +96,7 @@ class PhosphoProtData:  # wait for more data before tightening bolts here...
     name: str
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
+    gene: str | None = None
 
     def filter(self, gene: str, tests: list[str]):
         if "ID" not in tests:
@@ -112,12 +113,16 @@ class PhosphoProtData:  # wait for more data before tightening bolts here...
             value_vars=list(df.columns)[:-1],
             id_vars=SchemaPhos.UNQIUE_ID,
             var_name=SchemaPhos.GENE,
-            value_name="abun",
+            value_name=gene,
         )
         print('df_melted', df_melted.columns, sep="\n")
-        df_melted.columns = ['test', SchemaPhos.GENE, "abun"]
+        df_melted.columns = ['test', SchemaPhos.GENE, gene]
         print('self.df_FDR', self.df_FDR.head(), sep="\n")
-        return PhosphoProtData(self.name, df_melted, self.df_FDR)
+        return PhosphoProtData(self.name, df_melted, self.df_FDR, gene)
+    
+    @property  
+    def gene_false_discovery_rate(self):
+        return self.df_FDR.query('gene == @self.gene')
 
     @property
     def point_of_reference(self):
@@ -391,13 +396,20 @@ def read_excel(path: Path) -> pd.DataFrame:
 
 def split_dfs(df):
     df = df.T
+    #print('df_FDR0', df.head(), sep="\n")
     df_FDR = df.query('test == "P_value"')
+    if SchemaPhos.UNQIUE_ID in df.index:#this changes test to ID, doe sit matter?
+        df_FDR.columns = df.iloc[0]
+        df_FDR.drop(df_FDR.index[0])
+    #print('df_FDR1', df_FDR.head(), sep="\n")
     df_FDR["index_cpy"] = df_FDR.index
+    #print('df_FDR2', df_FDR.head(), sep="\n")
     df_FDR["test"] = df_FDR.index_cpy.apply(
         lambda x: x.strip()
         .split(") /")[0]
         .replace("Abundance Ratio Adj. P-Value: (", "")
     )
+    #print('df_FDR3', df_FDR.head(), sep="\n")
     del df_FDR["index_cpy"]
     df = df.query('test != "P_value"')
 
@@ -415,7 +427,7 @@ def load_prot_data(path: Path) -> ProtData:
     ]
     preprocessor = compose(SchemaProt, *pipe)
     df = preprocessor(df)
-
+    print('prrroooooooooooot')
     df, df_FDR = split_dfs(df)
     # df.to_csv("~/Downloads/prot2222.csv")
     return ProtData(path.stem, pl.from_pandas(df), df_FDR)
@@ -452,7 +464,9 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     ]
     preprocessor = compose(SchemaPhos, *pipe)
     df = preprocessor(df)
+    print(999999999,'phossssssssssss', df.head(), sep="\n")
     df, df_FDR = split_dfs(df)
+    print(8888888, df.head(), df_FDR.head(), sep="\n")
     # df.to_csv("~/Downloads/phos111.csv")
     return PhosphoProtData(path.stem, df, df_FDR)
 

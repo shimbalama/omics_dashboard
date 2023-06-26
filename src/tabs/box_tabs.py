@@ -31,8 +31,8 @@ def box(app, ids: IDs, datasets: dict[str, Data], params: type):
         test and overlays the respective FDR value"""
         selected_data = datasets[dataset]
         filtered: Data = selected_data.filter(gene, tests)
-        y_param = params.Y if params.Y else gene
-        return draw_box_chart(filtered, y_param, params, ids.plot)
+        #y_param = params.Y if params.Y else gene
+        return draw_box_chart(filtered, gene, params, ids.plot)
 
 
 def test_dropdown(app, ids: IDs, datasets: dict[str, Data]):
@@ -69,7 +69,7 @@ def get_defaults(datasets: dict[str, Data]) -> tuple[str, Data, list[str]]:
 
 def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
     first_gene, dataset, dataset_names = get_defaults(datasets)
-    y_param = params.Y if params.Y else first_gene
+    #y_param = params.Y if params.Y else first_gene
     children = [
         html.H6("Dataset"),
         dcc.Dropdown(
@@ -93,7 +93,7 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
             id=ids.select_all,
             n_clicks=0,
         ),
-        html.Div(draw_box_chart(dataset, y_param, params, ids.plot)),
+        html.Div(draw_box_chart(dataset, first_gene, params, ids.plot)),
     ]
 
     return children
