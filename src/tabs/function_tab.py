@@ -3,26 +3,25 @@ from dash.dependencies import Input, Output
 from src.read_files import Data
 from src.helpers import make_list_of_dicts
 import plotly.express as px
-import plotly.express as px
-
 
 
 KEY = "function"
 
 # np.seterr(divide = 'ignore')
 # def sigmoid1(x, EC50, hill_slope):
-        #     return 1 / (1 + np.exp(np.abs(EC50 - x) * hill_slope))
+#     return 1 / (1 + np.exp(np.abs(EC50 - x) * hill_slope))
 
-        # def sigmoid2(x, EC50, Hill, slope):
-        #     return 1 / (1 + (EC50 / x) ** Hill) ** slope
+# def sigmoid2(x, EC50, Hill, slope):
+#     return 1 / (1 + (EC50 / x) ** Hill) ** slope
 
-        # def sigmoid3(x,b,c,d,e):
-        #     '''This function is basically a copy of the LL.4 function from the R drc package with
-        #     - b: hill slope
-        #     - c: min response
-        #     - d: max response
-        #     - e: EC50'''
-        #     return(c+(d-c)/(1+np.exp(b*(np.log(x)-np.log(e)))))
+# def sigmoid3(x,b,c,d,e):
+#     '''This function is basically a copy of the LL.4 function from the R drc package with
+#     - b: hill slope
+#     - c: min response
+#     - d: max response
+#     - e: EC50'''
+#     return(c+(d-c)/(1+np.exp(b*(np.log(x)-np.log(e)))))
+
 
 def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
     def draw_line(filtered_data: Data) -> html.Div:
@@ -31,7 +30,6 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
         if filtered_data.plot_data.empty:
             return html.Div("No data selected")
         filtered_data.plot_data.to_csv("~/Downloads/plot_data.csv")
-
 
         fig = px.scatter(
             data_frame=filtered_data.plot_data,

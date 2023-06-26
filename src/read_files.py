@@ -17,14 +17,14 @@ def rubbish(name: str) -> bool:
 
 
 class Data(Protocol):
-    
     def filter():
+        '''Returns a filtred version of the data'''
         ...
 
-    def point_of_reference():#still?TODO
+    def point_of_reference():  # still?TODO
         ...
 
-    def pandas_df():#maybe plot df?
+    def pandas_df():  # maybe plot df?
         ...
 
 
@@ -69,7 +69,6 @@ class ProtData:
     @property
     def test_names(self):
         return set(self.df["test"])
-    
 
 
 @dataclass(slots=True, frozen=True)
@@ -99,18 +98,25 @@ class PhosphoProtData:  # wait for more data before tightening bolts here...
     df_FDR: pd.DataFrame = field(repr=False)
 
     def filter(self, gene: str, tests: list[str]):
-        df = self.df.copy().T
-        df["gene"] = df.index
+        if "ID" not in tests:
+            tests.append("ID")
+        df = self.df.copy()
+        df = df.query("test == @tests").T
+        df[SchemaPhos.GENE] = df.index
         df = df.query('gene == @gene | gene == "test"')
-        del df["gene"]
-        df = df.set_index("ID")
+        del df[SchemaPhos.GENE]
+
+        df = df.set_index(SchemaPhos.UNQIUE_ID)
         df = df.T
         df_melted = df.melt(
             value_vars=list(df.columns)[:-1],
-            id_vars="ID",
-            var_name="gene",
+            id_vars=SchemaPhos.UNQIUE_ID,
+            var_name=SchemaPhos.GENE,
             value_name="abun",
         )
+        print('df_melted', df_melted.columns, sep="\n")
+        df_melted.columns = ['test', SchemaPhos.GENE, "abun"]
+        print('self.df_FDR', self.df_FDR.head(), sep="\n")
         return PhosphoProtData(self.name, df_melted, self.df_FDR)
 
     @property
@@ -123,7 +129,9 @@ class PhosphoProtData:  # wait for more data before tightening bolts here...
 
     @property
     def test_names(self):
-        return set(self.df["test"])
+        return set(
+            [test for test in list(self.df["test"]) if test != SchemaPhos.UNQIUE_ID]
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -500,7 +508,7 @@ class FunctionData:
 
     def filter(
         self, test: str, conditions: list[str], datasets: list[str], metric: str
-    ):  # test is drug, here 
+    ):  # test is drug, here
         filt = "Drug == @test & Condition == @conditions & dataset == @datasets"
         df = self.df.query(filt).copy(deep=True)
         return FunctionData(name=datasets, df=df, metric=metric, drug=test)
@@ -585,10 +593,10 @@ class FunctionData:
         return df
 
     def possible_dataset_names(self, drug: str) -> list[str]:
-        return list(set(self.df.query('Drug == @drug')[SchemaFunction.DATASET]))
+        return list(set(self.df.query("Drug == @drug")[SchemaFunction.DATASET]))
 
     def possible_condition_names(self, drug: str) -> list[str]:
-        return list(set(self.df.query('Drug == @drug')[SchemaFunction.CONDITION]))
+        return list(set(self.df.query("Drug == @drug")[SchemaFunction.CONDITION]))
 
     @property
     def test_names(self):
@@ -739,7 +747,7 @@ def normalize_group2(group, DMSO):
     return pd.DataFrame(norm)
 
 
-def load_function_data(path: Path) -> PhosphoProtData:
+def load_function_data(path: Path) -> FunctionData:
     files = [fin for fin in list(path.glob("*xlsx")) if not rubbish(fin.name)]
     dfs = []
     # arrhythmias = []

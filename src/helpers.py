@@ -4,7 +4,7 @@ import plotly.express as px
 from src.read_files import Data
 from dataclasses import dataclass
 from functools import partial
-
+import pandas as pd
 
 @dataclass
 class Params:
@@ -72,7 +72,9 @@ def get_y_range(number_of_comparisons: int, interline: float = 0.03) -> np.ndarr
 def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     test and overlays the respective FDR value"""
-    df = data.pandas_df
+    
+    df: pd.DataFrame = data.pandas_df
+    print(11111,data, df.head(), sep="\n")
     fig = px.box(
         df,
         x=params.X,
@@ -80,14 +82,14 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
         points="all",
         width=1300,
         height=900,
-        color=params.COLOUR,
+        color='test',#TODO
         log_y=params.LOG,
         title=f"Boxplot for CPMs",
         labels={y_gene: "CPM"},
         facet_row_spacing=0.75,
     )
     if "test" in set(df.columns):
-        FDRs: dict[str, float] = data.df_FDR[y_gene].to_dict()
+        FDRs: dict[str, float] = data.df_FDR[y_gene].to_dict()#TODO - make all FDR uniform here. filter in filter?
         median_CPMs = {
             test: np.median(df.loc[df["test"] == test, y_gene])
             for test in np.unique(df["test"])
