@@ -6,7 +6,7 @@ import polars as pl
 import numpy as np
 import polars as pl
 from collections import Counter, defaultdict
-
+from abc import ABC, abstractmethod
 # from .helpers import rubbish
 from functools import partial, reduce
 from typing import Callable
@@ -18,18 +18,62 @@ def rubbish(name: str) -> bool:
 
 class Data(Protocol):
     def filter():
-        '''Returns a filtred version of the data'''
+        """Returns a filtred version of the data"""
         ...
 
     def point_of_reference():  # still?TODO
         ...
 
-    def pandas_df():  # maybe plot df?
+    def plot_df():  # maybe plot df?
         ...
+
+@dataclass(slots=True, frozen=True)
+class Data2(ABC):
+
+    name: str
+
+    @abstractmethod
+    def filter(self): #prot, phos
+        """Returns a filtred version of the data"""
+        pass
+    
+    @abstractmethod
+    def plot_df(self):   #prot, phos
+        pass
+    
+    @abstractmethod
+    def test_names(self):  #prot, phos
+        pass
+
+    @abstractmethod
+    def point_of_reference(self):  # still?TODO #prot, phos
+        pass
+
+    #cache? TODO
+    def _filter_on_test(self, df, test, gene):
+        """Select the value from gene where test col equals test"""
+        return df.query('test == @test')[gene]
+        
+
+    def get_FDR(self, test, gene):
+        
+        try:
+            return self._filter_on_test(self.df_FDR, test, gene).values[0]
+        except IndexError:
+            return 0.0
+
+    def get_median_CPMs(self, test, gene):
+        median_CPMs = {
+            test_name: np.median(self._filter_on_test(self.plot_df, test, gene))
+            for test_name in self.test_names
+        }
+        return median_CPMs[test]
+
+# TODO - new class for FDRs??? sits in Data
 
 
 @dataclass(slots=True, frozen=True)
-class ProtData:
+class ProtData(Data2):
     """Data pertaining to a chromosomal region
     Parameters
     ----------
@@ -49,30 +93,32 @@ class ProtData:
         lengths of homolymers
     """
 
-    name: str
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
+    gene: str | None = None
 
     def filter(self, gene: str, tests: list[str]):
         df = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test"])
-        return ProtData(self.name, df, self.df_FDR)
+        return ProtData(self.name, df, self.df_FDR, gene=gene)
 
     @property
     def point_of_reference(self):
         return "CTRL"
 
     @property
-    def pandas_df(self):
+    def plot_df(self):
         return self.df.to_pandas()
 
     @property
     def test_names(self):
-        return set(self.df["test"])
+        return np.unique(self.df[SchemaProt.CAT])
+
+    
 
 
 @dataclass(slots=True, frozen=True)
-class PhosphoProtData:  # wait for more data before tightening bolts here...
+class PhosphoProtData(Data2):  # wait for more data before tightening bolts here...
     # need to figure if want FDR bracket and if filter needs 'tests'
     """Data pertaining to a chromosomal region
     Parameters
@@ -92,7 +138,7 @@ class PhosphoProtData:  # wait for more data before tightening bolts here...
     homopolymer_lengths:
         lengths of homolymers
     """
-
+    ###TODO DataFrame columns are not unique, some columns will be omitted.UserWarning
     name: str
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
@@ -115,21 +161,19 @@ class PhosphoProtData:  # wait for more data before tightening bolts here...
             var_name=SchemaPhos.GENE,
             value_name=gene,
         )
-        print('df_melted', df_melted.columns, sep="\n")
-        df_melted.columns = ['test', SchemaPhos.GENE, gene]
-        print('self.df_FDR', self.df_FDR.head(), sep="\n")
+        df_melted.columns = ["test", SchemaPhos.GENE, gene]
         return PhosphoProtData(self.name, df_melted, self.df_FDR, gene)
-    
-    @property  
-    def gene_false_discovery_rate(self):
-        return self.df_FDR.query('gene == @self.gene')
+
+    # @property
+    # def get_FDR(self):
+    #     return self.df_FDR.query("gene == @self.gene")
 
     @property
     def point_of_reference(self):
         return "CTRL"
 
     @property
-    def pandas_df(self):
+    def plot_df(self):
         return self.df
 
     @property
@@ -138,9 +182,21 @@ class PhosphoProtData:  # wait for more data before tightening bolts here...
             [test for test in list(self.df["test"]) if test != SchemaPhos.UNQIUE_ID]
         )
 
+    # def get_FDR(self, test, gene):
+    #     """Select the value from gene where test col equals test"""
+    #     try:
+    #         return self.df_FDR.loc[self.df_FDR[SchemaPhos.CAT] == test, gene].values[0]
+    #     except IndexError:
+    #         return 0.0
+
+    # def get_FDR(self):
+    #     return self.df_FDR[
+    #         [pos for pos in self.df_FDR if pos.startswith(f"{self.gene}_")]
+    #     ].to_dict()
+
 
 @dataclass(slots=True, frozen=True)
-class RNASeqData:
+class RNASeqData(Data2):
     """Data pertaining to a chromosomal region
     Parameters
     ----------
@@ -163,12 +219,13 @@ class RNASeqData:
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
-    point_of_reference: str = field(init=False)
+    #point_of_reference: str = field(init=False)
+    gene: str | None = None
 
-    def __post_init__(self):
-        """set attribute point_of_reference"""
+    # def __post_init__(self):
+    #     """set attribute point_of_reference"""
 
-        object.__setattr__(self, "point_of_reference", self.find_point_of_reference())
+    #     object.__setattr__(self, "point_of_reference", self.find_point_of_reference())
 
     def filter(self, gene: str, tests: list[str] = None):
         df = self.df.filter(self.df["test"].is_in(tests))
@@ -178,12 +235,13 @@ class RNASeqData:
             df,
             self.df_FDR,
             self.processed_dfs,
+            gene=gene,
         )
 
     # TODO - post init to check that indexes are equal. found examples of missign and duplicates gene names
 
     @property
-    def pandas_df(self):
+    def plot_df(self):
         return self.df.to_pandas()
 
     @property
@@ -194,7 +252,8 @@ class RNASeqData:
     def degs(self):
         return set(self.processed_dfs.keys())
 
-    def find_point_of_reference(self):
+    @property
+    def point_of_reference(self):
         """frgrg"""
 
         ref_df = self.df.filter(pl.col("point_of_ref") == "yes")
@@ -205,6 +264,17 @@ class RNASeqData:
             raise ValueError("Multiple comparisons have POR tag!")
         else:
             return None
+
+    # def get_FDR(self, test, gene):
+    #     """Select the value from gene where test col equals test"""
+    #     try:
+    #         return self.df_FDR.loc[self.df_FDR["test"] == test, gene].values[0]
+    #     except IndexError:
+    #         return 0.0
+
+    # @property
+    # def get_FDR(self):
+    #     return self.df_FDR[self.gene].to_dict()
 
     # @property
     # def mean_count(self) -> pd.DataFrame:
@@ -396,20 +466,16 @@ def read_excel(path: Path) -> pd.DataFrame:
 
 def split_dfs(df):
     df = df.T
-    #print('df_FDR0', df.head(), sep="\n")
     df_FDR = df.query('test == "P_value"')
-    if SchemaPhos.UNQIUE_ID in df.index:#this changes test to ID, doe sit matter?
+    if SchemaPhos.UNQIUE_ID in df.index:  # this changes test to ID, doe sit matter?
         df_FDR.columns = df.iloc[0]
         df_FDR.drop(df_FDR.index[0])
-    #print('df_FDR1', df_FDR.head(), sep="\n")
     df_FDR["index_cpy"] = df_FDR.index
-    #print('df_FDR2', df_FDR.head(), sep="\n")
     df_FDR["test"] = df_FDR.index_cpy.apply(
         lambda x: x.strip()
         .split(") /")[0]
         .replace("Abundance Ratio Adj. P-Value: (", "")
     )
-    #print('df_FDR3', df_FDR.head(), sep="\n")
     del df_FDR["index_cpy"]
     df = df.query('test != "P_value"')
 
@@ -427,7 +493,6 @@ def load_prot_data(path: Path) -> ProtData:
     ]
     preprocessor = compose(SchemaProt, *pipe)
     df = preprocessor(df)
-    print('prrroooooooooooot')
     df, df_FDR = split_dfs(df)
     # df.to_csv("~/Downloads/prot2222.csv")
     return ProtData(path.stem, pl.from_pandas(df), df_FDR)
@@ -464,9 +529,7 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     ]
     preprocessor = compose(SchemaPhos, *pipe)
     df = preprocessor(df)
-    print(999999999,'phossssssssssss', df.head(), sep="\n")
     df, df_FDR = split_dfs(df)
-    print(8888888, df.head(), df_FDR.head(), sep="\n")
     # df.to_csv("~/Downloads/phos111.csv")
     return PhosphoProtData(path.stem, df, df_FDR)
 
@@ -573,7 +636,7 @@ class FunctionData:
         return arrhythmia_counts
 
     @property
-    def plot_data(self):
+    def plot_df(self):
         i = 0
         tmp_d = defaultdict(list)
 

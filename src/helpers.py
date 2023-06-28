@@ -73,7 +73,7 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     test and overlays the respective FDR value"""
     
-    df: pd.DataFrame = data.pandas_df
+    df: pd.DataFrame = data.plot_df
     print(11111,y_gene, data, df.head(), data.df_FDR.head(), sep="\n")
     fig = px.box(
         df,
@@ -91,6 +91,7 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
 
     if 'gene' in df.columns:
         for y_gene in set(df['gene']):
+            continue#TODO up to here
             fig = make_brackets(fig, df, y_gene, data)
     else:
         fig = make_brackets(fig, df, y_gene, data)
@@ -99,29 +100,30 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
 
 def make_brackets(fig, df, gene, data):
 
-    FDRs: dict[str, float] = data.df_FDR[gene].to_dict()
-    median_CPMs = {
-        test: np.median(df.loc[df["test"] == test, gene])#TODO - make all FDR uniform here. filter in filter?
-        for test in np.unique(df["test"])
-    }
-    unique_comparisons = df["test"].unique()
-    y_range = get_y_range(len(unique_comparisons))
-    if data.point_of_reference in unique_comparisons:
+    # FDRs: dict[str, float] = data.gene_false_discovery_rate
+    # print('FDRS', FDRs)
+    # median_CPMs = {
+    #     test: np.median(df.loc[df["test"] == test, gene])#TODO - make all FDR uniform here. filter in filter?
+    #     for test in np.unique(df["test"])
+    # }
+    unique_tests = data.test_names
+    y_range = get_y_range(len(unique_tests))
+    if data.point_of_reference in unique_tests:
         point_of_reference_index = [
             i
-            for i, test in enumerate(unique_comparisons)
+            for i, test in enumerate(unique_tests)
             if test == data.point_of_reference
         ]
         assert len(point_of_reference_index) == 1
         add_FDR_brackets_partial = partial(
             add_FDR_brackets, point_of_reference_index[0], y_range, 1.01, "black"
         )
-        for i, test in enumerate(unique_comparisons):
+        for i, test in enumerate(unique_tests):
             if test == data.point_of_reference:
                 assert i == point_of_reference_index[0]
                 continue
-            FDR = FDRs.get(test, 0.0)
-            y = median_CPMs[test]
+            FDR = data.get_FDR(test, gene)#can't do these ...
+            y = data.get_median_CPMs(test, gene)#2 in loop, too slow!!! TODO
             fig.add_annotation(
                 x=test,
                 y=y,

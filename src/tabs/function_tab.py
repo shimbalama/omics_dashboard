@@ -27,12 +27,11 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
     def draw_line(filtered_data: Data) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
-        if filtered_data.plot_data.empty:
+        if filtered_data.plot_df.empty:
             return html.Div("No data selected")
-        filtered_data.plot_data.to_csv("~/Downloads/plot_data.csv")
 
         fig = px.scatter(
-            data_frame=filtered_data.plot_data,
+            data_frame=filtered_data.plot_df,
             x=filtered_data.drug,
             y=filtered_data.metric,
             error_y="stds",
@@ -44,7 +43,7 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
 
         poses = ["top left", "top right", "bottom left", "bottom right"] * 3
 
-        for i, _ in enumerate(filtered_data.plot_data.groupby("name & condition")):
+        for i, _ in enumerate(filtered_data.plot_df.groupby("name & condition")):
             colour = fig.data[i].marker.color
             fig.data[i].update(
                 textfont_color=colour,
