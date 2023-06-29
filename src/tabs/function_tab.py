@@ -4,6 +4,7 @@ from src.read_files import Data
 from src.helpers import make_list_of_dicts
 import plotly.express as px
 
+import numpy as np
 
 KEY = "function"
 
@@ -43,8 +44,12 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
 
         poses = ["top left", "top right", "bottom left", "bottom right"] * 3
 
-        for i, _ in enumerate(filtered_data.plot_df.groupby("name & condition")):
+        colors = {}
+        for i, name_condition in enumerate(
+            filtered_data.plot_df.groupby("name & condition")
+        ):
             colour = fig.data[i].marker.color
+            colors[name_condition[0].split("_")[1][0]] = colour
             fig.data[i].update(
                 textfont_color=colour,
                 textposition=poses[i],
@@ -52,104 +57,42 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
             )
             fig.data[i].line.color = colour
             fig.data[i].line.shape = "spline"
-        fig.update_xaxes(type="log")  # range=[-1.5, max_y + 1])
+        fig.update_xaxes(type="log") 
 
-        # for name, cond_df in filtered_data.plot_data.groupby("name & condition"):
+        ec50 = filtered_data.ec50.query(
+            "Drug == @filtered_data.drug & Metric == @filtered_data.metric"
+        )  
+        if ec50.shape[0] == 1:
+            print(colors, ec50.iloc[0]["Experiment"])
+            colour = colors.get(str(ec50.iloc[0]["Experiment"]), 'black')
+            EC50 = ec50.iloc[0]["EC50 (uM)"]
+            if EC50 > 0:
+                fig.add_shape(
+                    type="line",
+                    x0=EC50,
+                    y0=min(filtered_data.plot_df[filtered_data.metric]) - 0.1,
+                    x1=EC50,
+                    y1=max(filtered_data.plot_df[filtered_data.metric]) + 0.1,
+                    line=dict(color=colour, dash="dash"),
+                )
+                x = np.log10(EC50)
+            else:
+                x = 0.1
 
-        #     print(33333, cond_df)
-        #     cond_df.replace(0, 0.001, inplace=True)
-        #     print(444444, cond_df)
-        #     colour = fig.data[i].marker.color
-        #     x = cond_df[filtered_data.drug].to_numpy()
-        #     y = cond_df[filtered_data.metric].to_numpy()
-        #     ec50_in_range = False
-
-        #         params, _ = curve_fit(sigmoid1, x, y)
-        #         EC50 = params[0]
-        #         if min(x) < EC50 < max(x):
-        #             ec50_in_range = True
-        #             sigmoid = partial(sigmoid1, EC50=EC50, hill_slope=params[1])
-
-        #         params, _ = curve_fit(sigmoid2, x, y)
-        #         EC50 = params[0]
-        #         if min(x) < EC50 < max(x):
-        #             ec50_in_range = True
-        #             sigmoid = partial(sigmoid2, EC50=EC50, Hill=params[1], slope=params[2])
-        #     print(11111111, EC50, ec50_in_range)
-        #     # Evaluate sigmoid curve at desired concentration points
-        #     curve_concentrations = np.logspace(
-        #         np.log10(x.min()), np.log10(x.max()), 100
-        #     )
-        #     curve_response = sigmoid(curve_concentrations)
-        #     print(9999999999,curve_concentrations, curve_response)
-        #     # Add sigmoid curve to the plot
-
-        #     fig.add_trace(px.line(x=curve_concentrations, y=curve_response).data[0])
-        #     fig.data[0].line.color = colour
-
-        #     if not ec50_in_range:
-        #         EC50 = 0.1
-
-        #     max_stds = max(cond_df["stds"]) TODO add this back in from provided EC50s don't del
-        #     fig.add_shape(
-        #         type="line",
-        #         x0=EC50,
-        #         y0=min(curve_response) - max_stds,
-        #         x1=EC50,
-        #         y1=max(curve_response) + max_stds,
-        #         line=dict(color=colour, dash="dash"),
-        #     )
-        #     fig.add_annotation(
-        #         x=np.log10(EC50),
-        #         y=max(curve_response) - (i/5)-0.1,
-        #         text=f"EC50 = {EC50:.2f}",
-        #         showarrow=True,
-        #         arrowhead=1,
-        #         arrowcolor=colour,
-        #         bordercolor=colour,
-        #         ax=30,
-        #         ay=-40,
-        #     )
-
-        #         # fig.add_vline(
-        #         #     x=EC50,
-        #         #     line_width=3,
-        #         #     line_dash="dash",
-        #         #     line_color=colour,
-        #         #     name=f"EC50: {EC50:.2f}",
-        #         # )
-
-        #     i += 1
-
-        # max_y = max(filtered_data.plot_data[filtered_data.metric])
-        # max_y = max_y if max_y > 1.5 else 1.5
-        # max_x = max(filtered_data.plot_data[filtered_data.drug])
-        # max_x = max_x if max_x > 1.5 else 1.5
-        # fig.update_yaxes(range=[-0.2, max_y + 0.2])
-        # fig.update_xaxes()
-        # fig.data[i].update(
-        #     textfont_color=fig1.data[i].marker.color,
-        #     textposition=poses[i],
-        #     mode="text",
-        #     showlegend=False,
-        # )
-
-        # Create a DataFrame for plotting
-        # df = pd.DataFrame(
-        #     [xs, ys, names, ec50s],
-        # ).T
-        # df.columns = [filtered_data.drug, filtered_data.metric, "name", "EC50"]
-
-        # # Plot the data and the fitted sigmoid curve
-        # fig2 = px.line(
-        #     df,
-        #     x=filtered_data.drug,
-        #     y=filtered_data.metric,
-        #     line_shape="spline",
-        #     color="name",
-        # )
-        # print(1111111, fig1.data[-1], fig1.data[-1].marker.color, len(fig1.data))
-        # new_trace = fig1.data[-1]
+            fig.add_annotation(
+                x=x,
+                y=max(filtered_data.plot_df[filtered_data.metric]) - 0.1,
+                text=f"EC50 = {EC50:.2f}",
+                showarrow=True,
+                arrowhead=1,
+                arrowcolor=colour,
+                bordercolor=colour,
+                ax=30,
+                ay=-40,
+            )
+        elif ec50.shape[0] > 1:
+            raise ValueError("too many EC50s")
+        
 
         return fig
 

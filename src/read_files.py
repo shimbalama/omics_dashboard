@@ -4,9 +4,9 @@ import pandas as pd
 from typing import Protocol
 import polars as pl
 import numpy as np
-import polars as pl
 from collections import Counter, defaultdict
 from abc import ABC, abstractmethod
+
 # from .helpers import rubbish
 from functools import partial, reduce
 from typing import Callable
@@ -27,49 +27,36 @@ class Data(Protocol):
     def plot_df():  # maybe plot df?
         ...
 
+
 @dataclass(slots=True, frozen=True)
 class Data2(ABC):
-
     name: str
 
     @abstractmethod
-    def filter(self): #prot, phos
+    def filter(self):  # prot, phos
         """Returns a filtred version of the data"""
         pass
-    
+
     @abstractmethod
-    def plot_df(self):   #prot, phos
+    def plot_df(self):  # prot, phos
         pass
-    
+
     @abstractmethod
-    def test_names(self):  #prot, phos
+    def test_names(self):  # prot, phos
         pass
 
     @abstractmethod
     def point_of_reference(self):  # still?TODO #prot, phos
         pass
 
-    #cache? TODO
-    def _filter_on_test(self, df, test, gene):
-        """Select the value from gene where test col equals test"""
-        return df.query('test == @test')[gene]
-        
-
-    def get_FDR(self, test, gene):
-        
+    def get_FDR(self, test, prot_pos=None):
         try:
-            return self._filter_on_test(self.df_FDR, test, gene).values[0]
-        except IndexError:
+            return self.df_FDR[test]
+        except KeyError:
             return 0.0
 
-    def get_median_CPMs(self, test, gene):
-        median_CPMs = {
-            test_name: np.median(self._filter_on_test(self.plot_df, test, gene))
-            for test_name in self.test_names
-        }
-        return median_CPMs[test]
-
-# TODO - new class for FDRs??? sits in Data
+    def get_median_CPMs(self, test, prot_pos=None):
+        return np.median(self.plot_df.query("test == @test")[self.gene])
 
 
 @dataclass(slots=True, frozen=True)
@@ -100,7 +87,7 @@ class ProtData(Data2):
     def filter(self, gene: str, tests: list[str]):
         df = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test"])
-        return ProtData(self.name, df, self.df_FDR, gene=gene)
+        return ProtData(self.name, df, self.df_FDR[gene], gene=gene)
 
     @property
     def point_of_reference(self):
@@ -112,9 +99,7 @@ class ProtData(Data2):
 
     @property
     def test_names(self):
-        return np.unique(self.df[SchemaProt.CAT])
-
-    
+        return sorted(np.unique(self.df[SchemaProt.CAT]))
 
 
 @dataclass(slots=True, frozen=True)
@@ -162,11 +147,33 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
             value_name=gene,
         )
         df_melted.columns = ["test", SchemaPhos.GENE, gene]
-        return PhosphoProtData(self.name, df_melted, self.df_FDR, gene)
+        fdr_cols = [col for col in self.df_FDR.columns if col.startswith(f"{gene}_")]
 
-    # @property
-    # def get_FDR(self):
-    #     return self.df_FDR.query("gene == @self.gene")
+        return PhosphoProtData(self.name, df_melted, self.df_FDR[fdr_cols + ['test']], gene)
+
+    def get_FDR(self, test, prot_pos=None):
+        print(
+            "self.df_FDR[test]",
+            prot_pos,
+            test,
+            self.df_FDR.query('test == @test'),
+            self.df_FDR.query('test == @test')[prot_pos],
+            self.df_FDR.query('test == @test')[prot_pos].values[0],
+            sep="\n**********************\n",
+        )
+        try:
+            return self.df_FDR.query('test == @test')[prot_pos].values[0]
+        except KeyError:
+            return 0.0
+
+    def get_median_CPMs(self, test, prot_pos=None):
+        print(
+            'self.plot_df.query("tgene == @prot_pos")[self.gene]',
+            self.plot_df.query("gene == @prot_pos"),
+            self.plot_df.query("gene == @prot_pos")[self.gene],
+            sep="\n",
+        )
+        return np.median(self.plot_df.query("gene == @prot_pos")[self.gene])
 
     @property
     def point_of_reference(self):
@@ -178,21 +185,11 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
 
     @property
     def test_names(self):
-        return set(
-            [test for test in list(self.df["test"]) if test != SchemaPhos.UNQIUE_ID]
+        return sorted(
+            set(
+                [test for test in list(self.df["test"]) if test != SchemaPhos.UNQIUE_ID]
+            )
         )
-
-    # def get_FDR(self, test, gene):
-    #     """Select the value from gene where test col equals test"""
-    #     try:
-    #         return self.df_FDR.loc[self.df_FDR[SchemaPhos.CAT] == test, gene].values[0]
-    #     except IndexError:
-    #         return 0.0
-
-    # def get_FDR(self):
-    #     return self.df_FDR[
-    #         [pos for pos in self.df_FDR if pos.startswith(f"{self.gene}_")]
-    #     ].to_dict()
 
 
 @dataclass(slots=True, frozen=True)
@@ -219,13 +216,7 @@ class RNASeqData(Data2):
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
-    #point_of_reference: str = field(init=False)
     gene: str | None = None
-
-    # def __post_init__(self):
-    #     """set attribute point_of_reference"""
-
-    #     object.__setattr__(self, "point_of_reference", self.find_point_of_reference())
 
     def filter(self, gene: str, tests: list[str] = None):
         df = self.df.filter(self.df["test"].is_in(tests))
@@ -233,7 +224,7 @@ class RNASeqData(Data2):
         return RNASeqData(
             self.name,
             df,
-            self.df_FDR,
+            self.df_FDR[gene],
             self.processed_dfs,
             gene=gene,
         )
@@ -246,7 +237,7 @@ class RNASeqData(Data2):
 
     @property
     def test_names(self):
-        return set(self.df["test"])
+        return sorted(set(self.df["test"]))
 
     @property
     def degs(self):
@@ -264,21 +255,6 @@ class RNASeqData(Data2):
             raise ValueError("Multiple comparisons have POR tag!")
         else:
             return None
-
-    # def get_FDR(self, test, gene):
-    #     """Select the value from gene where test col equals test"""
-    #     try:
-    #         return self.df_FDR.loc[self.df_FDR["test"] == test, gene].values[0]
-    #     except IndexError:
-    #         return 0.0
-
-    # @property
-    # def get_FDR(self):
-    #     return self.df_FDR[self.gene].to_dict()
-
-    # @property
-    # def mean_count(self) -> pd.DataFrame:
-    #     return self.df.groupby("test").agg("mean")
 
 
 def make_index(df):
@@ -579,7 +555,8 @@ class FunctionData:
     """
 
     df: pd.DataFrame = field(repr=False)
-    name: str = "Funky"
+    ec50: pd.DataFrame = field(repr=False)
+    names: list[str] | None = None
     metric: str | None = None
     drug: str | None = None
 
@@ -588,7 +565,7 @@ class FunctionData:
     ):  # test is drug, here
         filt = "Drug == @test & Condition == @conditions & dataset == @datasets"
         df = self.df.query(filt).copy(deep=True)
-        return FunctionData(name=datasets, df=df, metric=metric, drug=test)
+        return FunctionData(names=datasets, df=df, ec50=self.ec50, metric=metric, drug=test)
 
     def _create_pivot_df(self, df: pd.DataFrame) -> pd.DataFrame:
         cols = [self.metric, SchemaFunction.TIME, SchemaFunction.WELL]
@@ -634,6 +611,12 @@ class FunctionData:
             arrhythmia_counts.append(f"{str(non_arrhythmic)}/{str(total)}")
 
         return arrhythmia_counts
+    
+    def possible_dataset_names(self, drug: str) -> list[str]:
+        return list(set(self.df.query("Drug == @drug")[SchemaFunction.DATASET]))
+
+    def possible_condition_names(self, drug: str) -> list[str]:
+        return list(set(self.df.query("Drug == @drug")[SchemaFunction.CONDITION]))
 
     @property
     def plot_df(self):
@@ -669,11 +652,9 @@ class FunctionData:
         df = pd.DataFrame.from_dict(tmp_d)
         return df
 
-    def possible_dataset_names(self, drug: str) -> list[str]:
-        return list(set(self.df.query("Drug == @drug")[SchemaFunction.DATASET]))
-
-    def possible_condition_names(self, drug: str) -> list[str]:
-        return list(set(self.df.query("Drug == @drug")[SchemaFunction.CONDITION]))
+    @property
+    def experiments(self):
+        return [name.strip().split('_')[1] for name in self.names]
 
     @property
     def test_names(self):
@@ -829,6 +810,8 @@ def load_function_data(path: Path) -> FunctionData:
     dfs = []
     # arrhythmias = []
     for fin in files:
+        if 'Experiment_' not in fin.stem:
+            continue
         df = pd.read_excel(fin)
 
         # arrhythmias.append(find_arrhythmias(df))
@@ -876,7 +859,9 @@ def load_function_data(path: Path) -> FunctionData:
     df = pd.concat(dfs)
     # arrhythmia = pd.concat(arrhythmias)
     df.to_csv("~/Downloads/ttggg.csv")
-    return FunctionData(df=df)
+
+    df_EC50 = pd.read_excel([fin for fin in files if "EC50" in fin.stem][0])
+    return FunctionData(df=df, ec50= df_EC50)
 
 
 # load_prot_data(Path("/Users/liam/code/omics_dashboard/data/proteomics/FibrosisStim/"))

@@ -5,6 +5,8 @@ from src.read_files import Data
 from dataclasses import dataclass
 from functools import partial
 import pandas as pd
+import time
+
 
 @dataclass
 class Params:
@@ -51,9 +53,6 @@ class IDs:
         return f"{self.name}_slider2"
 
 
-# class TestIDs(IDs):
-# class VolcanoIDs(IDs):
-
 
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
     """Convert a list of strs into a list where those strings are values in dicts
@@ -72,9 +71,8 @@ def get_y_range(number_of_comparisons: int, interline: float = 0.03) -> np.ndarr
 def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     test and overlays the respective FDR value"""
-    
+
     df: pd.DataFrame = data.plot_df
-    print(11111,y_gene, data, df.head(), data.df_FDR.head(), sep="\n")
     fig = px.box(
         df,
         x=params.X,
@@ -82,48 +80,39 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
         points="all",
         width=1300,
         height=900,
-        color='test',#TODO
+        color="test",  # TODO
         log_y=params.LOG,
         title=f"Boxplot for CPMs",
         labels={y_gene: "CPM"},
         facet_row_spacing=0.75,
     )
 
-    if 'gene' in df.columns:
-        for y_gene in set(df['gene']):
-            continue#TODO up to here
-            fig = make_brackets(fig, df, y_gene, data)
-    else:
-        fig = make_brackets(fig, df, y_gene, data)
+    #fig = make_brackets(fig, data)
 
     return html.Div(dcc.Graph(figure=fig), id=plot_id)
 
-def make_brackets(fig, df, gene, data):
 
-    # FDRs: dict[str, float] = data.gene_false_discovery_rate
-    # print('FDRS', FDRs)
-    # median_CPMs = {
-    #     test: np.median(df.loc[df["test"] == test, gene])#TODO - make all FDR uniform here. filter in filter?
-    #     for test in np.unique(df["test"])
-    # }
-    unique_tests = data.test_names
-    y_range = get_y_range(len(unique_tests))
-    if data.point_of_reference in unique_tests:
+def make_brackets(fig, data):
+    print("making brackets", data, data.df_FDR.head(), sep="\n")
+    #https://community.plotly.com/t/grouped-bar-charts-with-corresponding-line-chart/19562/4
+    def bracket_subplots(fig, data, prot_pos = None):
+        print('sub', y_range)
         point_of_reference_index = [
-            i
-            for i, test in enumerate(unique_tests)
+            i for i, test in enumerate(data.test_names)
             if test == data.point_of_reference
         ]
         assert len(point_of_reference_index) == 1
         add_FDR_brackets_partial = partial(
             add_FDR_brackets, point_of_reference_index[0], y_range, 1.01, "black"
         )
-        for i, test in enumerate(unique_tests):
+        for i, test in enumerate(data.test_names):
             if test == data.point_of_reference:
                 assert i == point_of_reference_index[0]
                 continue
-            FDR = data.get_FDR(test, gene)#can't do these ...
-            y = data.get_median_CPMs(test, gene)#2 in loop, too slow!!! TODO
+            FDR = data.get_FDR(test, prot_pos)#[0]#fix this!!!TODO
+            y = data.get_median_CPMs(test, prot_pos)
+            #x = prot_pos if prot_pos else test
+            print('xxxxxxxxxxxxxxx5555', FDR, sep="\n")
             fig.add_annotation(
                 x=test,
                 y=y,
@@ -134,8 +123,121 @@ def make_brackets(fig, df, gene, data):
             fig = add_FDR_brackets_partial(fig, FDR, i)
         fig.update_layout(margin=dict(t=i * 33))
 
+        return fig
+    
+    if data.point_of_reference in data.test_names:
+        y_range = get_y_range(len(data.test_names))
+        print('y_range', y_range, sep="\n")
+        if isinstance(data.df_FDR, pd.DataFrame):
+            for prot_pos in data.df_FDR.columns:
+                fig = bracket_subplots(fig, data, prot_pos)
+        else:
+            fig = bracket_subplots(fig, data)
+            
+
     return fig
 
+def add_FDR_brackets2(
+    point_of_reference_index: int,
+    y_range: np.ndarray,
+    text_height: float,
+    color: str,
+    fig,
+    FDR: float,
+    i: int,
+):
+    """Adds notations giving the significance level between two box plot data (t-test two-sided test)
+
+    Parameters:
+    ----------
+    fig: figure
+        Plotly boxplot figure.
+    FDR: float
+        False Discovery Rate (FDR) value for the test.
+    i: int
+        Index of the y_range to use for the box plot data.
+    column_pair: list
+        List of two column indices to compare.
+        e.g.: [0, 1] compares column 0 with column 1.
+    y_range: list
+        List of y-ranges for the box plot data.
+    text_height: float, optional
+        Height of the text annotation above the box plot, default is 1.01.
+    color: str, optional
+        Color of the lines and text annotation, default is "black".
+
+    Returns:
+    -------
+    fig: figure
+        Figure with the added notation.
+    """
+
+    if FDR >= 0.05:
+        symbol = "ns"
+    elif FDR >= 0.01:
+        symbol = "*"
+    elif FDR >= 0.001:
+        symbol = "**"
+    else:
+        symbol = "***"
+    # Vertical line at value
+    fig.add_shape(
+        type="line",
+        xref="x",
+        yref="y" + " domain",
+        x0=i,
+        y0=y_range[i][0],
+        x1=i,
+        y1=y_range[i][1],
+        line=dict(
+            color=color,
+            width=2,
+        ),
+    )
+    # Horizontal line
+    fig.add_shape(
+        type="line",
+        xref="x",
+        yref="y" + " domain",
+        x0=i,
+        y0=y_range[i][1],
+        x1=point_of_reference_index,
+        y1=y_range[i][1],
+        line=dict(
+            color=color,
+            width=2,
+        ),
+    )
+    # Vertical line at POR
+    fig.add_shape(
+        type="line",
+        xref="x",
+        yref="y" + " domain",
+        x0=point_of_reference_index,
+        y0=y_range[i][0],
+        x1=point_of_reference_index,
+        y1=y_range[i][1],
+        line=dict(
+            color=color,
+            width=2,
+        ),
+    )
+    ## add text at the correct x, y coordinates
+    ## for bars, there is a direct mapping from the bar number to 0, 1, 2...
+    fig.add_annotation(
+        dict(
+            font=dict(color=color, size=14),
+            x=(i + point_of_reference_index) / 2,
+            y=y_range[i][1] * text_height,
+            showarrow=False,
+            text=symbol,
+            textangle=0,
+            xref="x",
+            yref="y" + " domain",
+        )
+    )
+
+    return fig
 
 def add_FDR_brackets(
     point_of_reference_index: int,
