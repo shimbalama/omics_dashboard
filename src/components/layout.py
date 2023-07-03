@@ -31,7 +31,7 @@ def sub_tab_layout(
     '''Defines base unit of UI'''
     ids = IDs(name)
     params = (
-        Params(X="gene", COLOUR="ID", LOG=True, Y="abun")
+        Params(X="gene", COLOUR="test", LOG=True, Y="abun")
         if name == "Phosphoproteomics"
         else Params(X="test")
     )

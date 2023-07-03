@@ -7,7 +7,6 @@ import numpy as np
 from collections import Counter, defaultdict
 from abc import ABC, abstractmethod
 
-# from .helpers import rubbish
 from functools import partial, reduce
 from typing import Callable
 
@@ -99,7 +98,7 @@ class ProtData(Data2):
 
     @property
     def test_names(self):
-        return sorted(np.unique(self.df[SchemaProt.CAT]))
+        return sorted(np.unique(self.df[Schema.CAT]))
 
 
 @dataclass(slots=True, frozen=True)
@@ -134,35 +133,37 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
             tests.append("ID")
         df = self.df.copy()
         df = df.query("test == @tests").T
-        df[SchemaPhos.GENE] = df.index
+        df[Schema.GENE] = df.index
         df = df.query('gene == @gene | gene == "test"')
-        del df[SchemaPhos.GENE]
+        del df[Schema.GENE]
 
-        df = df.set_index(SchemaPhos.UNQIUE_ID)
+        df = df.set_index(Schema.UNQIUE_ID)
         df = df.T
         df_melted = df.melt(
             value_vars=list(df.columns)[:-1],
-            id_vars=SchemaPhos.UNQIUE_ID,
-            var_name=SchemaPhos.GENE,
+            id_vars=Schema.UNQIUE_ID,
+            var_name=Schema.GENE,
             value_name=gene,
         )
-        df_melted.columns = ["test", SchemaPhos.GENE, gene]
+        df_melted.columns = ["test", Schema.GENE, gene]
         fdr_cols = [col for col in self.df_FDR.columns if col.startswith(f"{gene}_")]
 
-        return PhosphoProtData(self.name, df_melted, self.df_FDR[fdr_cols + ['test']], gene)
+        return PhosphoProtData(
+            self.name, df_melted, self.df_FDR[fdr_cols + ["test"]], gene
+        )
 
     def get_FDR(self, test, prot_pos=None):
         print(
             "self.df_FDR[test]",
             prot_pos,
             test,
-            self.df_FDR.query('test == @test'),
-            self.df_FDR.query('test == @test')[prot_pos],
-            self.df_FDR.query('test == @test')[prot_pos].values[0],
+            self.df_FDR.query("test == @test"),
+            self.df_FDR.query("test == @test")[prot_pos],
+            self.df_FDR.query("test == @test")[prot_pos].values[0],
             sep="\n**********************\n",
         )
         try:
-            return self.df_FDR.query('test == @test')[prot_pos].values[0]
+            return self.df_FDR.query("test == @test")[prot_pos].values[0]
         except KeyError:
             return 0.0
 
@@ -186,9 +187,7 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
     @property
     def test_names(self):
         return sorted(
-            set(
-                [test for test in list(self.df["test"]) if test != SchemaPhos.UNQIUE_ID]
-            )
+            set([test for test in list(self.df["test"]) if test != Schema.UNQIUE_ID])
         )
 
 
@@ -340,42 +339,41 @@ def load_RNAseq_data(path: Path) -> RNASeqData:
     return RNASeqData(path.stem, CPM, merged_FDRs, FDR)
 
 
-class SchemaProt:
-    COMBINED_PROT_DESCRIPTION = "Description"
-    GENE = "gene"
-    CAT = "test"
+# class Schema:
+#     COMBINED_PROT_DESCRIPTION = "Description"
+#     GENE = "gene"
+#     CAT = "test"
 
 
-class SchemaPhos:
+class Schema:
     UNQIUE_ID = "ID"
     POS_IN_PROT = "Positions in Proteins"
     MOD_IN_PROT = "Modifications in Proteins"
-    COMBINED_PROT_DESCRIPTION = "Master Protein Descriptions"
+    COMBINED_PROT_DESCRIPTION = (
+        "Master Protein Descriptions"  # was just  "Description" in prot
+    )
     GENE = "gene"
     CAT = "test"
 
 
-Preprocessor = Callable[[type, pd.DataFrame], pd.DataFrame]
+Preprocessor = Callable[[pd.DataFrame], pd.DataFrame]
 
 
-def compose(schema: type, *functions: Preprocessor) -> Preprocessor:
+def compose(*functions: Preprocessor) -> Preprocessor:
     """Helper function to call all df functions sequencially"""
-    partially_filled_funcs = [partial(func, schema) for func in functions]
-    return reduce(
-        lambda func1, func2: lambda x: func2(func1(x)), partially_filled_funcs
-    )
+    return reduce(lambda func1, func2: lambda x: func2(func1(x)), functions)
 
 
-def description_to_str(schema: type, df: pd.DataFrame) -> pd.DataFrame:
-    df[schema.COMBINED_PROT_DESCRIPTION] = df[schema.COMBINED_PROT_DESCRIPTION].astype(
+def description_to_str(df: pd.DataFrame) -> pd.DataFrame:
+    df[Schema.COMBINED_PROT_DESCRIPTION] = df[Schema.COMBINED_PROT_DESCRIPTION].astype(
         "str"
     )
 
     return df
 
 
-def make_gene_col(schema: type, df: pd.DataFrame) -> pd.DataFrame:
-    df[schema.GENE] = df[schema.COMBINED_PROT_DESCRIPTION].apply(
+def make_gene_col(df: pd.DataFrame) -> pd.DataFrame:
+    df[Schema.GENE] = df[Schema.COMBINED_PROT_DESCRIPTION].apply(
         lambda x: [val for val in x.strip().split(" ") if "GN=" in val]
         .pop()
         .replace("GN=", "")
@@ -385,25 +383,23 @@ def make_gene_col(schema: type, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def make_gene_col_unique(schema: type, df: pd.DataFrame) -> pd.DataFrame:
-    non_unique_genes = list(df[schema.GENE])
+def make_gene_col_unique(df: pd.DataFrame, col: str) -> pd.DataFrame:
+    non_unique_genes = list(df[col])
     counts = Counter(non_unique_genes)
     unique_genes = []
     for i, gene in enumerate(non_unique_genes):
         if counts[gene] > 1:
             unique_genes.append(
-                f"{gene}{counts[gene]-non_unique_genes[:i].count(gene)}"
+                f"{gene}_{counts[gene]-non_unique_genes[:i].count(gene)}"
             )
         else:
             unique_genes.append(gene)
 
-    df[schema.GENE] = unique_genes
+    df[col] = unique_genes
     return df
 
 
-def remove_unwanted_cols(
-    schema: type, df: pd.DataFrame, misc: list[str]
-) -> pd.DataFrame:
+def remove_unwanted_cols(df: pd.DataFrame, misc: list[str]) -> pd.DataFrame:
     abundances: list[str] = [
         col
         for col in list(df.columns)
@@ -414,15 +410,15 @@ def remove_unwanted_cols(
     return df
 
 
-def add_categories(schema: type, df: pd.DataFrame) -> pd.DataFrame:
-    df = df.set_index(schema.GENE)
+def add_categories(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.set_index(Schema.GENE)
     df = df.T
     index_str = "index_str"
     df[index_str] = df.index
-    df[schema.CAT] = df[index_str].apply(
+    df[Schema.CAT] = df[index_str].apply(
         lambda x: "P_value" if "P-Value:" in x else str(x).split(",")[-1].strip()
     )
-    df[schema.CAT] = df[schema.CAT].astype("category")
+    df[Schema.CAT] = df[Schema.CAT].astype("category")
     del df[index_str]
 
     return df.T
@@ -443,7 +439,7 @@ def read_excel(path: Path) -> pd.DataFrame:
 def split_dfs(df):
     df = df.T
     df_FDR = df.query('test == "P_value"')
-    if SchemaPhos.UNQIUE_ID in df.index:  # this changes test to ID, doe sit matter?
+    if Schema.UNQIUE_ID in df.index:  # this changes test to ID, doe sit matter?
         df_FDR.columns = df.iloc[0]
         df_FDR.drop(df_FDR.index[0])
     df_FDR["index_cpy"] = df_FDR.index
@@ -463,18 +459,18 @@ def load_prot_data(path: Path) -> ProtData:
     pipe = [
         description_to_str,
         make_gene_col,
-        make_gene_col_unique,
-        partial(remove_unwanted_cols, misc=[SchemaProt.GENE]),
+        partial(make_gene_col_unique, col=Schema.GENE),
+        partial(remove_unwanted_cols, misc=[Schema.GENE]),
         add_categories,
     ]
-    preprocessor = compose(SchemaProt, *pipe)
+    preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
     # df.to_csv("~/Downloads/prot2222.csv")
     return ProtData(path.stem, pl.from_pandas(df), df_FDR)
 
 
-def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
+def create_unqiue_id(df: pd.DataFrame) -> pd.DataFrame:
     def choose_pos(gene: str, pos_extact: str | float, pos_range: str) -> str:
         if not isinstance(pos_extact, float):
             poses = pos_extact.strip().split(" ")[-1]
@@ -483,11 +479,11 @@ def create_unqiue_id(schema: type, df: pd.DataFrame) -> pd.DataFrame:
             pos: str = pos_range.split(" ")[-1][1:-1]
         return "_".join([gene, pos])
 
-    df[schema.UNQIUE_ID] = df.apply(
+    df[Schema.UNQIUE_ID] = df.apply(
         lambda x: choose_pos(
-            x[schema.GENE],
-            x[schema.MOD_IN_PROT],
-            x[schema.POS_IN_PROT],
+            x[Schema.GENE],
+            x[Schema.MOD_IN_PROT],
+            x[Schema.POS_IN_PROT],
         ),
         axis=1,
     )
@@ -498,15 +494,16 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     df = read_excel(path)
     pipe = [
         description_to_str,
-        make_gene_col,  # make_gene_col_unique, can't as are mainnly dups..
+        make_gene_col,
         create_unqiue_id,
-        partial(remove_unwanted_cols, misc=[SchemaPhos.GENE, SchemaPhos.UNQIUE_ID]),
+        partial(make_gene_col_unique, col=Schema.UNQIUE_ID),
+        partial(remove_unwanted_cols, misc=[Schema.GENE, Schema.UNQIUE_ID]),
         add_categories,
     ]
-    preprocessor = compose(SchemaPhos, *pipe)
+    preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    # df.to_csv("~/Downloads/phos111.csv")
+    df.to_csv(f"~/Downloads/{path.stem}_phos111.csv")
     return PhosphoProtData(path.stem, df, df_FDR)
 
 
@@ -565,7 +562,9 @@ class FunctionData:
     ):  # test is drug, here
         filt = "Drug == @test & Condition == @conditions & dataset == @datasets"
         df = self.df.query(filt).copy(deep=True)
-        return FunctionData(names=datasets, df=df, ec50=self.ec50, metric=metric, drug=test)
+        return FunctionData(
+            names=datasets, df=df, ec50=self.ec50, metric=metric, drug=test
+        )
 
     def _create_pivot_df(self, df: pd.DataFrame) -> pd.DataFrame:
         cols = [self.metric, SchemaFunction.TIME, SchemaFunction.WELL]
@@ -611,7 +610,7 @@ class FunctionData:
             arrhythmia_counts.append(f"{str(non_arrhythmic)}/{str(total)}")
 
         return arrhythmia_counts
-    
+
     def possible_dataset_names(self, drug: str) -> list[str]:
         return list(set(self.df.query("Drug == @drug")[SchemaFunction.DATASET]))
 
@@ -641,8 +640,6 @@ class FunctionData:
 
             xs, ys, stds = self._get_mean_values(pivot_df, dose)
             arrhythmia_counts = self._get_arrhythmia_counts(df, xs)
-            # # https://www.statology.org/sigmoid-function-python/
-            # # https://datagy.io/sigmoid-function-python/
 
             tmp_d[self.drug] += xs
             tmp_d[self.metric] += ys
@@ -654,7 +651,7 @@ class FunctionData:
 
     @property
     def experiments(self):
-        return [name.strip().split('_')[1] for name in self.names]
+        return [name.strip().split("_")[1] for name in self.names]
 
     @property
     def test_names(self):
@@ -663,16 +660,16 @@ class FunctionData:
     @property
     def metrics(self):
         return [
-            name for schema, name in vars(SchemaFunction).items() if "__" not in schema
+            name for Schema, name in vars(SchemaFunction).items() if "__" not in Schema
         ][9:-1]
 
 
-FunctionPreprocessor = Callable[[pd.DataFrame], pd.DataFrame]
+# Preprocessor = Callable[[pd.DataFrame], pd.DataFrame]
 
 
-def compose_functiona_data(*functions: FunctionPreprocessor) -> FunctionPreprocessor:
-    """Helper function to call all df functions sequencially"""
-    return reduce(lambda func1, func2: lambda x: func2(func1(x)), functions)
+# def compose_functiona_data(*functions: Preprocessor) -> Preprocessor:
+#     """Helper function to call all df functions sequencially"""
+#     return reduce(lambda func1, func2: lambda x: func2(func1(x)), functions)
 
 
 def remove_leading_0(df: pd.DataFrame) -> pd.DataFrame:
@@ -688,12 +685,6 @@ def time_str(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def remove_arrhythmia(df: pd.DataFrame) -> pd.DataFrame:
-    """Experiment 1 Plate 2 has bona fide arrhythmias.
-    This is designated with a Y in the last column instead of an N.
-      For these all parameters need to be omitted from the plot
-      and it would be useful to display arrhythmias for that point
-        eg. 3/6 on the plot. hmmmm
-    """
     if SchemaFunction.ARRHYTHMIA in df.columns:
         df = df.query('Arrhythmia == "N"')
     return df
@@ -706,8 +697,6 @@ def key(df: pd.DataFrame) -> pd.DataFrame:
 
 def del_uneeded(df: pd.DataFrame) -> pd.DataFrame:
     del df["Plate"]
-    # del df["Normalisation 1"]
-    # del df["Normalisation 2"]
     return df
 
 
@@ -765,7 +754,7 @@ def find_arrhythmias(df):
 
 def metric_names():
     return [
-        name for schema, name in vars(SchemaFunction).items() if "__" not in schema
+        name for Schema, name in vars(SchemaFunction).items() if "__" not in Schema
     ][9:-2]
 
 
@@ -808,13 +797,11 @@ def normalize_group2(group, DMSO):
 def load_function_data(path: Path) -> FunctionData:
     files = [fin for fin in list(path.glob("*xlsx")) if not rubbish(fin.name)]
     dfs = []
-    # arrhythmias = []
     for fin in files:
-        if 'Experiment_' not in fin.stem:
+        if "Experiment_" not in fin.stem:
             continue
         df = pd.read_excel(fin)
 
-        # arrhythmias.append(find_arrhythmias(df))
         pipe = [
             remove_leading_0,
             time_str,
@@ -823,7 +810,7 @@ def load_function_data(path: Path) -> FunctionData:
             del_uneeded,
             index_key,
         ]
-        preprocessor = compose_functiona_data(*pipe)
+        preprocessor = compose(*pipe)
         df = preprocessor(df)
         normalized_df = df.groupby("Drug").apply(normalize_group)
         normalized_df = normalized_df.reset_index(level=["Drug"])
@@ -844,7 +831,6 @@ def load_function_data(path: Path) -> FunctionData:
             normalized_df2 = normalize_group2(
                 normalized_df.query("Drug == @name"), DMSO
             )
-            # normalized_df2 = normalized_df2.reset_index(level=["Drug"])
             pipe = [
                 index_copy,
                 zeros,
@@ -852,7 +838,7 @@ def load_function_data(path: Path) -> FunctionData:
                 partial(add_dataset_name, name=fin.stem),
                 partial(put_required_cols_back, original_df=drug_df),
             ]
-            preprocessor = compose_functiona_data(*pipe)
+            preprocessor = compose(*pipe)
             normalized_df2 = preprocessor(normalized_df2)
             sub_dfs.append(normalized_df2)
         dfs.append(pd.concat(sub_dfs))
@@ -861,12 +847,4 @@ def load_function_data(path: Path) -> FunctionData:
     df.to_csv("~/Downloads/ttggg.csv")
 
     df_EC50 = pd.read_excel([fin for fin in files if "EC50" in fin.stem][0])
-    return FunctionData(df=df, ec50= df_EC50)
-
-
-# load_prot_data(Path("/Users/liam/code/omics_dashboard/data/proteomics/FibrosisStim/"))
-# load_phospho_data(
-#     Path("/Users/liam/code/omics_dashboard/data/phosphoproteomics/ET1-His")
-# )
-
-# load_RNAseq_data(Path('/Users/liam/code/omics_dashboard/data/rna_bulk/Reid_unpub_Cytokine_Storm_vs_BETi'))
+    return FunctionData(df=df, ec50=df_EC50)

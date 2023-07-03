@@ -53,7 +53,6 @@ class IDs:
         return f"{self.name}_slider2"
 
 
-
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
     """Convert a list of strs into a list where those strings are values in dicts
     against keys label and value, for use in callbacks"""
@@ -78,41 +77,48 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
         x=params.X,
         y=y_gene,
         points="all",
-        width=1300,
-        height=900,
-        color="test",  # TODO
+        width=1000,
+        height=700,
+        color=params.COLOUR,  # TODO
         log_y=params.LOG,
         title=f"Boxplot for CPMs",
         labels={y_gene: "CPM"},
         facet_row_spacing=0.75,
     )
 
-    #fig = make_brackets(fig, data)
+    fig = make_brackets(fig, data)
 
     return html.Div(dcc.Graph(figure=fig), id=plot_id)
 
 
 def make_brackets(fig, data):
     print("making brackets", data, data.df_FDR.head(), sep="\n")
-    #https://community.plotly.com/t/grouped-bar-charts-with-corresponding-line-chart/19562/4
-    def bracket_subplots(fig, data, prot_pos = None):
-        print('sub', y_range)
+
+    # https://community.plotly.com/t/grouped-bar-charts-with-corresponding-line-chart/19562/4
+    def bracket_subplots(fig, data, prot_pos=None):
+        # print('sub', y_range)
         point_of_reference_index = [
-            i for i, test in enumerate(data.test_names)
+            i
+            for i, test in enumerate(data.test_names)
             if test == data.point_of_reference
         ]
         assert len(point_of_reference_index) == 1
-        add_FDR_brackets_partial = partial(
-            add_FDR_brackets, point_of_reference_index[0], y_range, 1.01, "black"
-        )
+        if prot_pos:
+            add_FDR_brackets_partial = partial(
+                add_FDR_brackets2, point_of_reference_index[0], y_range, 1.01, "black"
+            )
+        else:
+            add_FDR_brackets_partial = partial(
+                add_FDR_brackets, point_of_reference_index[0], y_range, 1.01, "black"
+            )
         for i, test in enumerate(data.test_names):
             if test == data.point_of_reference:
                 assert i == point_of_reference_index[0]
                 continue
-            FDR = data.get_FDR(test, prot_pos)#[0]#fix this!!!TODO
+            FDR = data.get_FDR(test, prot_pos)  # [0]#fix this!!!TODO
             y = data.get_median_CPMs(test, prot_pos)
-            #x = prot_pos if prot_pos else test
-            print('xxxxxxxxxxxxxxx5555', FDR, sep="\n")
+            # x = prot_pos if prot_pos else test
+            print('xxxxxxxxxxxxxxx5555', FDR,y, sep="\n")
             fig.add_annotation(
                 x=test,
                 y=y,
@@ -124,18 +130,19 @@ def make_brackets(fig, data):
         fig.update_layout(margin=dict(t=i * 33))
 
         return fig
-    
+
     if data.point_of_reference in data.test_names:
         y_range = get_y_range(len(data.test_names))
-        print('y_range', y_range, sep="\n")
+        # print('y_range', y_range, sep="\n")
         if isinstance(data.df_FDR, pd.DataFrame):
-            for prot_pos in data.df_FDR.columns:
-                fig = bracket_subplots(fig, data, prot_pos)
+            pass
+            # for prot_pos in data.df_FDR.columns:
+            #     fig = bracket_subplots(fig, data, prot_pos)
         else:
             fig = bracket_subplots(fig, data)
-            
 
     return fig
+
 
 def add_FDR_brackets2(
     point_of_reference_index: int,
@@ -185,9 +192,9 @@ def add_FDR_brackets2(
         type="line",
         xref="x",
         yref="y" + " domain",
-        x0=i,
+        x0=i-0.01,
         y0=y_range[i][0],
-        x1=i,
+        x1=i-0.01,
         y1=y_range[i][1],
         line=dict(
             color=color,
@@ -199,9 +206,9 @@ def add_FDR_brackets2(
         type="line",
         xref="x",
         yref="y" + " domain",
-        x0=i,
+        x0=i-0.01,
         y0=y_range[i][1],
-        x1=point_of_reference_index,
+        x1=i,
         y1=y_range[i][1],
         line=dict(
             color=color,
@@ -213,9 +220,9 @@ def add_FDR_brackets2(
         type="line",
         xref="x",
         yref="y" + " domain",
-        x0=point_of_reference_index,
+        x0=i+0.01,
         y0=y_range[i][0],
-        x1=point_of_reference_index,
+        x1=i+0.01,
         y1=y_range[i][1],
         line=dict(
             color=color,
@@ -238,6 +245,7 @@ def add_FDR_brackets2(
     )
 
     return fig
+
 
 def add_FDR_brackets(
     point_of_reference_index: int,

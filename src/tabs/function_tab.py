@@ -3,25 +3,9 @@ from dash.dependencies import Input, Output
 from src.read_files import Data
 from src.helpers import make_list_of_dicts
 import plotly.express as px
-
 import numpy as np
 
 KEY = "function"
-
-# np.seterr(divide = 'ignore')
-# def sigmoid1(x, EC50, hill_slope):
-#     return 1 / (1 + np.exp(np.abs(EC50 - x) * hill_slope))
-
-# def sigmoid2(x, EC50, Hill, slope):
-#     return 1 / (1 + (EC50 / x) ** Hill) ** slope
-
-# def sigmoid3(x,b,c,d,e):
-#     '''This function is basically a copy of the LL.4 function from the R drc package with
-#     - b: hill slope
-#     - c: min response
-#     - d: max response
-#     - e: EC50'''
-#     return(c+(d-c)/(1+np.exp(b*(np.log(x)-np.log(e)))))
 
 
 def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
@@ -57,15 +41,15 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
             )
             fig.data[i].line.color = colour
             fig.data[i].line.shape = "spline"
-        fig.update_xaxes(type="log") 
+        fig.update_xaxes(type="log")
 
         ec50 = filtered_data.ec50.query(
             "Drug == @filtered_data.drug & Metric == @filtered_data.metric"
-        )  
-        if ec50.shape[0] == 1:
-            print(colors, ec50.iloc[0]["Experiment"])
-            colour = colors.get(str(ec50.iloc[0]["Experiment"]), 'black')
-            EC50 = ec50.iloc[0]["EC50 (uM)"]
+        )
+        assert ec50.shape[0] <= len(colors)
+        for experiment, EC50 in zip(list(ec50["Experiment"]), list(ec50["EC50 (uM)"])):
+            colour = colors.get(str(experiment), "black")
+            #EC50 = ec50.loc[experiment][]
             if EC50 > 0:
                 fig.add_shape(
                     type="line",
@@ -90,9 +74,6 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
                 ax=30,
                 ay=-40,
             )
-        elif ec50.shape[0] > 1:
-            raise ValueError("too many EC50s")
-        
 
         return fig
 

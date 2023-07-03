@@ -6,6 +6,6 @@ from src.read_files import RNASeqData
 def render(app: Dash, data: dict[str, RNASeqData], ids, params) -> html.Div:
     return html.Div(
         children=[
-            html.P("Wecome to the lab Hudson ploting dashbouard! "),
+            html.P("Wecome to the lab Hudson ploting dashboard! \n"*4),
         ]
     )
