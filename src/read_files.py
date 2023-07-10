@@ -154,27 +154,34 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
 
     def get_FDR(self, test, prot_pos=None):
         print(
-            "self.df_FDR[test]",
+            "self.df_FDR[test]#############################",
             prot_pos,
             test,
+            self.df_FDR,
             self.df_FDR.query("test == @test"),
             self.df_FDR.query("test == @test")[prot_pos],
-            self.df_FDR.query("test == @test")[prot_pos].values[0],
+            self.df_FDR.query("test == @test")[prot_pos].values,
             sep="\n**********************\n",
         )
+        
         try:
             return self.df_FDR.query("test == @test")[prot_pos].values[0]
         except KeyError:
             return 0.0
 
     def get_median_CPMs(self, test, prot_pos=None):
-        print(
-            'self.plot_df.query("tgene == @prot_pos")[self.gene]',
-            self.plot_df.query("gene == @prot_pos"),
-            self.plot_df.query("gene == @prot_pos")[self.gene],
-            sep="\n",
-        )
-        return np.median(self.plot_df.query("gene == @prot_pos")[self.gene])
+        # print(
+        #     'self.plot_df.query("tgene == @prot_pos")[self.gene]]#############################",',
+        #     prot_pos,
+        #     test,
+        #     self.plot_df,
+        #     self.plot_df.query("gene == @prot_pos"),
+        #     self.plot_df.query("gene == @prot_pos")[self.gene].fillna(0.0),
+        #     '1111111111',
+        #     np.median(self.plot_df.query("gene == @prot_pos").fillna(0.0)[self.gene]),
+        #     sep="\n**********************\n"
+        # )
+        return np.median(self.plot_df.query("gene == @prot_pos").fillna(0.0)[self.gene])
 
     @property
     def point_of_reference(self):
@@ -403,7 +410,9 @@ def remove_unwanted_cols(df: pd.DataFrame, misc: list[str]) -> pd.DataFrame:
     abundances: list[str] = [
         col
         for col in list(df.columns)
-        if col.startswith(("Abundance: F", "Abundance Ratio Adj. P-Value:"))
+        if col.startswith(
+            ("Abundance: F", "Abundance Ratio Adj. P-Value:")
+        )
     ]
     df = df[misc + abundances]
 
@@ -466,7 +475,7 @@ def load_prot_data(path: Path) -> ProtData:
     preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    # df.to_csv("~/Downloads/prot2222.csv")
+    df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
     return ProtData(path.stem, pl.from_pandas(df), df_FDR)
 
 
@@ -503,7 +512,8 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    df.to_csv(f"~/Downloads/{path.stem}_phos111.csv")
+    df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
+    df.to_csv(f"~/Downloads/{path.stem}_df.csv")
     return PhosphoProtData(path.stem, df, df_FDR)
 
 

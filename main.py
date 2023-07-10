@@ -40,7 +40,7 @@ def main() -> None:
         data = dict(pool.imap_unordered(read_all, data_folders))
     # data = dict(read_all(gg) for gg in data_folders)
     print(f"data loaded in {time()-start} seconds")
-    app = Dash(external_stylesheets=[DARKLY])
+    app = Dash(external_stylesheets=[BOOTSTRAP])
     app.title = "Omics dashboard"
     app.layout = create_layout(app, data)
     app.run()

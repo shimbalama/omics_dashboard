@@ -31,6 +31,7 @@ def box(app, ids: IDs, datasets: dict[str, Data], params: type):
         test and overlays the respective FDR value"""
         selected_data = datasets[dataset]
         filtered: Data = selected_data.filter(gene, tests)
+        #print('filtered!!!!!', filtered.df_FDR.head(), selected_data.df_FDR.head(), sep='\n')
         #y_param = params.Y if params.Y else gene
         return draw_box_chart(filtered, gene, params, ids.plot)
 
