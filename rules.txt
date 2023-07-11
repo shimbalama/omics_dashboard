@@ -1,0 +1,10 @@
+Rules for files in dashboard
+
+
+
+CPMs
+Required cols: gene_id (ENSG00000000003) gene_symbol (TSPAN6)
+
+The rest of the CPM col names match names of DEG files with regex NAME_* (col) or NAME.*sv. The Point Of Reference (POR) is the the condition that all other conditions are compared to. The POR will not have a DEG file oits's own and the text string POR needs to be added to the relevant CPM file columns at the 2nd position, ie, NAME_POR_*.
+
+DEGs

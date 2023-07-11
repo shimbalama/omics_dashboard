@@ -153,16 +153,16 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
         )
 
     def get_FDR(self, test, prot_pos=None):
-        print(
-            "self.df_FDR[test]#############################",
-            prot_pos,
-            test,
-            self.df_FDR,
-            self.df_FDR.query("test == @test"),
-            self.df_FDR.query("test == @test")[prot_pos],
-            self.df_FDR.query("test == @test")[prot_pos].values,
-            sep="\n**********************\n",
-        )
+        # print(
+        #     "self.df_FDR[test]#############################",
+        #     prot_pos,
+        #     test,
+        #     self.df_FDR,
+        #     self.df_FDR.query("test == @test"),
+        #     self.df_FDR.query("test == @test")[prot_pos],
+        #     self.df_FDR.query("test == @test")[prot_pos].values,
+        #     sep="\n**********************\n",
+        # )
         
         try:
             return self.df_FDR.query("test == @test")[prot_pos].values[0]
