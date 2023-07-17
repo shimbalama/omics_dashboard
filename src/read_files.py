@@ -153,34 +153,14 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
         )
 
     def get_FDR(self, test, prot_pos=None):
-        # print(
-        #     "self.df_FDR[test]#############################",
-        #     prot_pos,
-        #     test,
-        #     self.df_FDR,
-        #     self.df_FDR.query("test == @test"),
-        #     self.df_FDR.query("test == @test")[prot_pos],
-        #     self.df_FDR.query("test == @test")[prot_pos].values,
-        #     sep="\n**********************\n",
-        # )
-        
+   
         try:
             return self.df_FDR.query("test == @test")[prot_pos].values[0]
         except KeyError:
             return 0.0
 
     def get_median_CPMs(self, test, prot_pos=None):
-        # print(
-        #     'self.plot_df.query("tgene == @prot_pos")[self.gene]]#############################",',
-        #     prot_pos,
-        #     test,
-        #     self.plot_df,
-        #     self.plot_df.query("gene == @prot_pos"),
-        #     self.plot_df.query("gene == @prot_pos")[self.gene].fillna(0.0),
-        #     '1111111111',
-        #     np.median(self.plot_df.query("gene == @prot_pos").fillna(0.0)[self.gene]),
-        #     sep="\n**********************\n"
-        # )
+       
         return np.median(self.plot_df.query("gene == @prot_pos").fillna(0.0)[self.gene])
 
     @property

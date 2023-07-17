@@ -1,4 +1,4 @@
-# Dash App Tutorial
+# Dash App
 
 ## Running the app
 
