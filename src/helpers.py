@@ -71,7 +71,6 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
     test and overlays the respective FDR value"""
 
     df: pd.DataFrame = data.plot_df
-    print(44444, y_gene, params)
     fig = px.box(
         df,
         x=params.X,
