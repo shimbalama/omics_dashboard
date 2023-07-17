@@ -71,7 +71,7 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
     test and overlays the respective FDR value"""
 
     df: pd.DataFrame = data.plot_df
-    print(params.X, df.head(22), sep='\n')
+    print(44444, y_gene, params)
     fig = px.box(
         df,
         x=params.X,
@@ -84,6 +84,9 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
         labels={y_gene: "CPM"},
         facet_row_spacing=0.75,
     )  # title=f"Boxplot for CPMs",
+    if not params.COLOUR == 'test' and not params.Y == 'abun':#not phospho
+        fig.update_xaxes(categoryorder='array', categoryarray= data.ordered_test_names)
+
 
     fig = make_brackets(fig, data)
 
@@ -138,8 +141,9 @@ def add_bracket_per_test(
     sub_poses: str | None = None,
 ) -> go.Figure:
     """Adds notations giving the significance level between two box plot data"""
-    for i, test in enumerate(data.test_names):
+    for i, test in enumerate(data.ordered_test_names):
         if test == data.point_of_reference:
+
             assert i == point_of_reference
             continue
         FDR = data.get_FDR(test, prot_pos) if prot_pos else data.get_FDR(test)
@@ -165,7 +169,7 @@ def add_bracket_per_test(
 def get_point_of_reference(data: Data) -> int:
     """Get the index of the point of reference in the list of tests"""
     point_of_reference_index = [
-        i for i, test in enumerate(data.test_names) if test == data.point_of_reference
+        i for i, test in enumerate(data.ordered_test_names) if test == data.point_of_reference
     ]
     assert len(point_of_reference_index) == 1
     return point_of_reference_index[0]
@@ -208,7 +212,9 @@ class Bracket:
 
     @property
     def stars(self):
-        if self.FDR >= 0.05:
+        if self.FDR == 0.0:
+            return "ns"
+        elif self.FDR >= 0.05:
             return "ns"
         elif self.FDR >= 0.01:
             return "*"
@@ -238,7 +244,6 @@ def add_FDR_brackets(fig: go.Figure, bracket: Bracket) -> go.Figure:
     fig: figure
         Plotly boxplot figure.
     """
-    print(1111111111222, 'bracket', bracket)
     for line in [
         [bracket.x_POR, bracket.y0, bracket.x_POR, bracket.y1],
         [bracket.x_POR, bracket.y1, bracket.x_other, bracket.y1],

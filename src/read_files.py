@@ -30,6 +30,8 @@ class Data(Protocol):
 @dataclass(slots=True, frozen=True)
 class Data2(ABC):
     name: str
+    gene: str
+    ordered_test_names: list[str]
 
     @abstractmethod
     def filter(self):  # prot, phos
@@ -81,12 +83,18 @@ class ProtData(Data2):
 
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
-    gene: str | None = None
+    # gene: str | None = None
 
     def filter(self, gene: str, tests: list[str]):
         df = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test"])
-        return ProtData(self.name, df, self.df_FDR[gene], gene=gene)
+        return ProtData(
+            name=self.name,
+            df=df,
+            df_FDR=self.df_FDR[gene],
+            gene=gene,
+            ordered_test_names=[test for test in tests if test != 'ID'],
+        )
 
     @property
     def point_of_reference(self):
@@ -126,7 +134,7 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
     name: str
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
-    gene: str | None = None
+    # gene: str | None = None
 
     def filter(self, gene: str, tests: list[str]):
         if "ID" not in tests:
@@ -149,18 +157,20 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
         fdr_cols = [col for col in self.df_FDR.columns if col.startswith(f"{gene}_")]
 
         return PhosphoProtData(
-            self.name, df_melted, self.df_FDR[fdr_cols + ["test"]], gene
+            name=self.name,
+            df=df_melted,
+            df_FDR=self.df_FDR[fdr_cols + ["test"]],
+            gene=gene,
+            ordered_test_names=[test for test in tests if test != 'ID'],
         )
 
     def get_FDR(self, test, prot_pos=None):
-   
         try:
             return self.df_FDR.query("test == @test")[prot_pos].values[0]
         except KeyError:
             return 0.0
 
     def get_median_CPMs(self, test, prot_pos=None):
-       
         return np.median(self.plot_df.query("gene == @prot_pos").fillna(0.0)[self.gene])
 
     @property
@@ -202,17 +212,18 @@ class RNASeqData(Data2):
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
-    gene: str | None = None
+    # gene: str | None = None
 
     def filter(self, gene: str, tests: list[str] = None):
-        df = self.df.filter(self.df["test"].is_in(tests))
+        df: pl.DataFrame = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test", "point_of_ref"])
         return RNASeqData(
-            self.name,
-            df,
-            self.df_FDR[gene],
-            self.processed_dfs,
+            name=self.name,
+            df=df,
+            df_FDR=self.df_FDR[gene],
+            processed_dfs=self.processed_dfs,
             gene=gene,
+            ordered_test_names=[test for test in tests if test != 'ID'],
         )
 
     # TODO - post init to check that indexes are equal. found examples of missign and duplicates gene names
@@ -318,18 +329,18 @@ def load_RNAseq_data(path: Path) -> RNASeqData:
     CPM = read_CPM(path)
     CPM = CPM.query('test != "description"')
     CPM = CPM.astype({col: "Float32" for col in CPM.columns[:-2]})
-    FDR = load_processed_rna_files(path)
+    FDR: dict[str, pd.DataFrame] = load_processed_rna_files(path)
     merged_FDRs = merge_FDR(FDR)
     CPM = pl.from_pandas(CPM)
-    # CPM.to_csv("~/Downloads/CPM3333.csv")
-    # merged_FDRs.to_csv("~/Downloads/FDR44444.csv")
-    return RNASeqData(path.stem, CPM, merged_FDRs, FDR)
 
-
-# class Schema:
-#     COMBINED_PROT_DESCRIPTION = "Description"
-#     GENE = "gene"
-#     CAT = "test"
+    return RNASeqData(
+        name=path.stem,
+        df=CPM,
+        df_FDR=merged_FDRs,
+        processed_dfs=FDR,
+        gene="NA",
+        ordered_test_names=["NA"],
+    )
 
 
 class Schema:
@@ -390,9 +401,7 @@ def remove_unwanted_cols(df: pd.DataFrame, misc: list[str]) -> pd.DataFrame:
     abundances: list[str] = [
         col
         for col in list(df.columns)
-        if col.startswith(
-            ("Abundance: F", "Abundance Ratio Adj. P-Value:")
-        )
+        if col.startswith(("Abundance: F", "Abundance Ratio Adj. P-Value:"))
     ]
     df = df[misc + abundances]
 
@@ -456,7 +465,13 @@ def load_prot_data(path: Path) -> ProtData:
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
     df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
-    return ProtData(path.stem, pl.from_pandas(df), df_FDR)
+    return ProtData(
+        name=path.stem,
+        df=pl.from_pandas(df),
+        df_FDR=df_FDR,
+        gene="NA",
+        ordered_test_names=["NA"],
+    )
 
 
 def create_unqiue_id(df: pd.DataFrame) -> pd.DataFrame:
@@ -494,7 +509,9 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     df, df_FDR = split_dfs(df)
     df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
     df.to_csv(f"~/Downloads/{path.stem}_df.csv")
-    return PhosphoProtData(path.stem, df, df_FDR)
+    return PhosphoProtData(
+        name=path.stem, df=df, df_FDR=df_FDR, gene="NA", ordered_test_names=["NA"]
+    )
 
 
 class SchemaFunction:
