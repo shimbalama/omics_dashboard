@@ -153,7 +153,6 @@ def add_bracket_per_test(
         fig = add_FDR_brackets(fig, bracket)
 
         if add_annotation:
-            print(i, test, FDR, data.test_names)
             fig.add_annotation(
                 x=test,
                 y=data.get_median_CPMs(test),

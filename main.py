@@ -11,8 +11,14 @@ from src.components.layout import create_layout
 from pathlib import Path
 from src.helpers import rubbish
 from time import time
+import json
 
+import dash_auth
 
+# Keep this out of source code repository - save in a file or a database
+passwords = Path("auth/passwords.json")
+with open("auth/passwords.json", 'r') as f:
+    VALID_USERNAME_PASSWORD_PAIRS = json.load(f)
 DATA_PATH = Path("./data").absolute()
 
 READERS = {
@@ -23,8 +29,7 @@ READERS = {
 }
 
 
-def read_all(path: Path): # might have to chnage htis to read on demand??
-    
+def read_all(path: Path):  # might have to chnage htis to read on demand??
     return path.name, {
         sub_path.name: READERS.get(path.name)(sub_path)
         for sub_path in path.glob("*")
@@ -35,15 +40,16 @@ def read_all(path: Path): # might have to chnage htis to read on demand??
 def main() -> None:
     start = time()
     data_folders = [path for path in DATA_PATH.glob("*") if not rubbish(path.name)]
-    
+
     with Pool(processes=8) as pool:
         data = dict(pool.imap_unordered(read_all, data_folders))
     # data = dict(read_all(gg) for gg in data_folders)
     print(f"data loaded in {time()-start} seconds")
     app = Dash(external_stylesheets=[BOOTSTRAP])
+    auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
     app.title = "Omics dashboard"
     app.layout = create_layout(app, data)
-    app.run()
+    app.run(debug=True)
 
 
 if __name__ == "__main__":

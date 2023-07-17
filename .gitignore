@@ -3,6 +3,10 @@ data/*
 data*
 *data
 
+#auth
+auth/*
+*passwords*
+
 #testing
 play*
 *.ipynb_checkpoints
