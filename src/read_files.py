@@ -5,7 +5,7 @@ from typing import Protocol
 import polars as pl
 import numpy as np
 from collections import Counter, defaultdict
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 
 from functools import partial, reduce
 from typing import Callable
@@ -38,15 +38,15 @@ class Data2(ABC):
         """Returns a filtred version of the data"""
         pass
 
-    @abstractmethod
+    @abstractproperty
     def plot_df(self):  # prot, phos
         pass
 
-    @abstractmethod
+    @abstractproperty
     def test_names(self):  # prot, phos
         pass
 
-    @abstractmethod
+    @abstractproperty
     def point_of_reference(self):  # still?TODO #prot, phos
         pass
 
@@ -278,9 +278,10 @@ def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
             delimitor = "\t"
         else:
             raise ValueError("delimitor unknown!")
-        df = pl.read_csv(csv, separator=delimitor).to_pandas(
-            use_pyarrow_extension_array=True
-        )
+        # df = pl.read_csv(csv, separator=delimitor).to_pandas(
+        #     use_pyarrow_extension_array=True
+        # )
+        df = pd.read_csv(csv, sep=delimitor)
         df.columns = [
             "gene_id",
             "gene_symbol",
@@ -306,7 +307,8 @@ def read_CPM(path: Path) -> pl.DataFrame:
     fin = list(path.glob("*.csv"))
     if fin:
         fin = fin.pop()
-        df = pl.read_csv(str(fin)).to_pandas(use_pyarrow_extension_array=True)
+        #df = pl.read_csv(str(fin)).to_pandas(use_pyarrow_extension_array=True)
+        df = pd.read_csv(fin)#TODO como
         df = make_index(df)
         df = df.T.iloc[3:]
         names: list[str] = list(df.index)
@@ -464,7 +466,7 @@ def load_prot_data(path: Path) -> ProtData:
     preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
+    #df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
     return ProtData(
         name=path.stem,
         df=pl.from_pandas(df),
@@ -507,8 +509,8 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
-    df.to_csv(f"~/Downloads/{path.stem}_df.csv")
+    #df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
+    #df.to_csv(f"~/Downloads/{path.stem}_df.csv")
     return PhosphoProtData(
         name=path.stem, df=df, df_FDR=df_FDR, gene="NA", ordered_test_names=["NA"]
     )
@@ -819,9 +821,9 @@ def load_function_data(path: Path) -> FunctionData:
         ]
         preprocessor = compose(*pipe)
         df = preprocessor(df)
-        normalized_df = df.groupby("Drug").apply(normalize_group)
+        normalized_df = df.groupby("Drug", group_keys=True).apply(normalize_group)
         normalized_df = normalized_df.reset_index(level=["Drug"])
-        normalized_df.to_csv("~/Downloads/normalized_dfgg.csv")
+        #normalized_df.to_csv("~/Downloads/normalized_dfgg.csv")
         sub_dfs = []
         for name, drug_df in df.groupby(SchemaFunction.DRUG):
             mapping = get_mappings(
@@ -851,7 +853,6 @@ def load_function_data(path: Path) -> FunctionData:
         dfs.append(pd.concat(sub_dfs))
     df = pd.concat(dfs)
     # arrhythmia = pd.concat(arrhythmias)
-    df.to_csv("~/Downloads/ttggg.csv")
 
     df_EC50 = pd.read_excel([fin for fin in files if "EC50" in fin.stem][0])
     return FunctionData(df=df, ec50=df_EC50)

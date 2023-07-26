@@ -1,5 +1,6 @@
 from dash import Dash
-from multiprocessing import Pool
+
+# from multiprocessing import Pool
 from dash_bootstrap_components.themes import BOOTSTRAP, CYBORG, DARKLY
 from src.read_files import (
     load_RNAseq_data,
@@ -17,7 +18,7 @@ import dash_auth
 
 # Keep this out of source code repository - save in a file or a database
 passwords = Path("auth/passwords.json")
-with open("auth/passwords.json", 'r') as f:
+with open("auth/passwords.json", "r") as f:
     VALID_USERNAME_PASSWORD_PAIRS = json.load(f)
 DATA_PATH = Path("./data").absolute()
 
@@ -41,15 +42,15 @@ def main() -> None:
     start = time()
     data_folders = [path for path in DATA_PATH.glob("*") if not rubbish(path.name)]
 
-    with Pool(processes=8) as pool:
-        data = dict(pool.imap_unordered(read_all, data_folders))
-    # data = dict(read_all(gg) for gg in data_folders)
+    # with Pool(processes=8) as pool:
+    #    data = dict(pool.imap_unordered(read_all, data_folders))
+    data = dict(read_all(gg) for gg in data_folders)
     print(f"data loaded in {time()-start} seconds")
     app = Dash(external_stylesheets=[BOOTSTRAP])
     auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
     app.title = "Omics dashboard"
     app.layout = create_layout(app, data)
-    app.run(debug=True)
+    app.run_server(debug=True, host="0.0.0.0", port=8080)
 
 
 if __name__ == "__main__":
