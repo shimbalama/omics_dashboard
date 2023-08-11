@@ -4,16 +4,44 @@ from src.read_files import Data
 from src.helpers import make_list_of_dicts
 import plotly.express as px
 import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
 
 KEY = "function"
 
 
-def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
+def render(app: Dash, dataset: Data, ids2, params) -> go.Figure:
     def draw_line(filtered_data: Data) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
+
         if filtered_data.plot_df.empty:
-            return html.Div("No data selected")
+            # Data for the letters
+            letters = {
+                "N": [(1, 4), (1, 1), (2, 4), (2, 1)],
+                "O": [(3, 1), (3, 4), (4, 4), (4, 1), (3, 1)],
+                "D": [(6, 1), (6, 4), (7, 4), (7, 2), (6, 1)],
+                "A": [(8, 1), (8, 4), (9, 4), (9, 1), (8, 3), (9, 3)],
+                "T": [(10, 4), (11, 4), (10.5, 4), (10.5, 1)],
+                "A2": [(12, 1), (12, 4), (13, 4), (13, 1), (12, 3), (13, 3)],
+            }
+
+            # Create empty figure
+            fig = go.Figure()
+
+            # Add lines for each letter
+            for letter, coords in letters.items():
+                x, y = zip(*coords)
+                fig.add_trace(go.Scatter(x=x, y=y, mode="lines+markers"))
+
+            # Hide axes for cleaner look
+            fig.update_xaxes(showticklabels=False, zeroline=False)
+            fig.update_yaxes(showticklabels=False, zeroline=False)
+
+            # Set layout
+            fig.update_layout(width=666, height=666)
+
+            return fig
 
         fig = px.scatter(
             data_frame=filtered_data.plot_df,
@@ -37,10 +65,10 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
             fig.data[i].update(
                 textfont_color=colour,
                 textposition=poses[i],
-                mode="lines+markers+text",
-            )
-            fig.data[i].line.color = colour
-            fig.data[i].line.shape = "spline"
+                mode="markers+text",
+            )  # lines+
+            # fig.data[i].line.color = colour
+            # fig.data[i].line.shape = "spline"
         fig.update_xaxes(type="log")
 
         ec50 = filtered_data.ec50.query(
@@ -49,7 +77,7 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
         assert ec50.shape[0] <= len(colors)
         for experiment, EC50 in zip(list(ec50["Experiment"]), list(ec50["EC50 (uM)"])):
             colour = colors.get(str(experiment), "black")
-            #EC50 = ec50.loc[experiment][]
+            # EC50 = ec50.loc[experiment][]
             if EC50 > 0:
                 fig.add_shape(
                     type="line",
@@ -75,6 +103,20 @@ def render(app: Dash, dataset: Data, ids2, params) -> html.Div:
                 ay=-40,
             )
 
+        # Set layout
+        fig.update_layout(
+            width=666,
+            height=666,
+            legend=dict(
+                orientation="h",
+                entrywidth=333,
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+            ),
+        )
+        fig.update_layout(modebar_orientation='v')
         return fig
 
     @app.callback(Output("func_DATA_DROP", "options"), Input("func_drug_drop", "value"))

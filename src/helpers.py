@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 class Params:
     """Parameters for box plotting"""
 
+    name: str
     X: str
     COLOUR: str | None = None
     LOG: bool = False
@@ -76,18 +77,31 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
         x=params.X,
         y=y_gene,
         points="all",
-        width=888,
-        height=750,
+        width=666,
+        height=666,
         color=params.COLOUR,  # TODO
         log_y=params.LOG,
         labels={y_gene: "CPM"},
         facet_row_spacing=0.75,
     )  # title=f"Boxplot for CPMs",
-    if not params.COLOUR == 'test' and not params.Y == 'abun':#not phospho
-        fig.update_xaxes(categoryorder='array', categoryarray= data.ordered_test_names)
-
+    if not params.COLOUR == "test" and not params.Y == "abun":  # not phospho
+        fig.update_xaxes(categoryorder="array", categoryarray=data.ordered_test_names)
 
     fig = make_brackets(fig, data)
+    # Set layout TODO this code is duplicated in func 
+    fig.update_layout(
+        width=666,
+        height=666,
+        legend=dict(
+            orientation="h",
+            entrywidth=333,
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+    )
+    fig.update_layout(modebar_orientation='v')
 
     return html.Div(dcc.Graph(figure=fig), id=plot_id)
 
@@ -112,18 +126,20 @@ def make_brackets(fig: go.Figure, data: Data) -> go.Figure:
         y_range = get_y_range(len(data.test_names))
         point_of_reference = get_point_of_reference(data)
         if isinstance(data.df_FDR, pd.DataFrame):
-            for i, prot_pos in enumerate(data.df_FDR.columns):
-                if prot_pos != "test":
-                    sub_poses = get_sub_poses(len(data.test_names), i)
-                    add_bracket_per_test(
-                        fig,
-                        data,
-                        point_of_reference,
-                        y_range,
-                        add_annotation=False,
-                        prot_pos=prot_pos,
-                        sub_poses=sub_poses,
-                    )
+            if len(data.df_FDR.columns) == 2 and 'test' in data.df_FDR.columns:
+                #issue #27 - only bracket if 1 pos... (from James)
+                for i, phos_pos in enumerate(data.df_FDR.columns):
+                    if phos_pos != "test":
+                        sub_poses = get_sub_poses(len(data.test_names), i)
+                        add_bracket_per_test(
+                            fig,
+                            data,
+                            point_of_reference,
+                            y_range,
+                            add_annotation=False,
+                            prot_pos=phos_pos,
+                            sub_poses=sub_poses,
+                        )
         else:
             add_bracket_per_test(fig, data, point_of_reference, y_range)
 
@@ -142,7 +158,6 @@ def add_bracket_per_test(
     """Adds notations giving the significance level between two box plot data"""
     for i, test in enumerate(data.ordered_test_names):
         if test == data.point_of_reference:
-
             assert i == point_of_reference
             continue
         FDR = data.get_FDR(test, prot_pos) if prot_pos else data.get_FDR(test)
@@ -159,15 +174,20 @@ def add_bracket_per_test(
                 text=f"{FDR:.1e}",
                 yshift=10,
                 showarrow=False,
+                font=dict(color="black", size=10),
             )
+
         fig.update_layout(margin=dict(t=i * 22))
+
     return fig
 
 
 def get_point_of_reference(data: Data) -> int:
     """Get the index of the point of reference in the list of tests"""
     point_of_reference_index = [
-        i for i, test in enumerate(data.ordered_test_names) if test == data.point_of_reference
+        i
+        for i, test in enumerate(data.ordered_test_names)
+        if test == data.point_of_reference
     ]
     assert len(point_of_reference_index) == 1
     return point_of_reference_index[0]

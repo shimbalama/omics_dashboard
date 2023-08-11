@@ -58,6 +58,19 @@ def test_dropdown_select_all(app, ids: IDs):
         """Default to all available comparisons"""
         return [comp["value"] for comp in available_comparisons]
 
+def phospho_site_dropdown(app, ids: IDs, datasets: dict[str, Data]):
+    @app.callback(
+        Output('phos_site_drop', "options"),
+        Input(ids.data_drop, "value"),
+        Input(ids.gene_drop, "value"),
+        Input(ids.tests_drop, "value"),
+    )
+    def set_comparison_options(dataset: str, gene: str, tests: list[str]) -> list[dict[str, str]]:
+        """Populates the test selection dropdown with options from teh given dataset"""
+        selected_data = datasets[dataset]
+        filtered: Data = selected_data.filter(gene, tests)
+        return make_list_of_dicts(list(filtered.df_FDR.columns))
+
 
 def get_defaults(datasets: dict[str, Data]) -> tuple[str, Data, list[str]]:
     dataset_names = list(datasets.keys())
@@ -93,17 +106,27 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
             children=["Select All"],
             id=ids.select_all,
             n_clicks=0,
-        ),
-        html.Div(draw_box_chart(dataset, first_gene, params, ids.plot)),
-    ]
+        )]
+    if params.name == 'Phosphoproteomics':
+        children += [html.H6("Phospho Site"),
+        dcc.Dropdown(
+            id='phos_site_drop',
+            multi=True,
+        )]
+    
+    children += [html.Div(draw_box_chart(dataset, first_gene, params, ids.plot))]
+    
 
     return children
 
 
 def render(app: Dash, datasets: dict[str, Data], ids: IDs, params: Params) -> html.Div:
+    print(11112222, params)
     gene_dropdown(app, ids, datasets)
     gene_dropdown_default(app, ids)
     test_dropdown(app, ids, datasets)
     test_dropdown_select_all(app, ids)
+    if params.name == 'Phosphoproteomics':
+        phospho_site_dropdown(app, ids, datasets)
     box(app, ids, datasets, params)
     return html.Div(children=dropdowns(datasets, params, ids))

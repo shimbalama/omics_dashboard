@@ -137,6 +137,7 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
     # gene: str | None = None
 
     def filter(self, gene: str, tests: list[str]):
+        
         if "ID" not in tests:
             tests.append("ID")
         df = self.df.copy()
@@ -154,6 +155,10 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
             value_name=gene,
         )
         df_melted.columns = ["test", Schema.GENE, gene]
+        for phos_pos, pos_df in df_melted.groupby('gene'):
+            if not any(pos_df.query('test == @self.point_of_reference')[gene].notna()):
+                self.df_FDR[phos_pos] = 0.0 #tiny P values due to no CTRL data need to be zeroed
+            
         fdr_cols = [col for col in self.df_FDR.columns if col.startswith(f"{gene}_")]
 
         return PhosphoProtData(
@@ -526,16 +531,16 @@ class SchemaFunction:
     TIME = "Timepoint"
     DOSE = "Dose"
     WELL = "Well Number"
-    FORCE = "Force (uN)"
-    RATE = "Rate (bps)"
-    TA50 = "Ta50 (s)"
-    TR50 = "Tr50 (s)"
-    TPEAK = "Tpeak 85 (s)"
-    TA_15_30 = "Ta 15-30 (s)"
-    TA_30_85 = "Ta 30-85 (s)"
-    TR_85_50 = "Tr 85-50 (s)"
-    TR_50_15 = "Tr 50-15 (s)"
-    RR_SCAT = "RRscat (s)"
+    FORCE = "Force"
+    RATE = "Rate"
+    TA50 = "Ta50"
+    TR50 = "Tr50"
+    TPEAK = "Tpeak 85"
+    TA_15_30 = "Ta 15-30"
+    TA_30_85 = "Ta 30-85"
+    TR_85_50 = "Tr 85-50"
+    TR_50_15 = "Tr 50-15"
+    RR_SCAT = "RRscat"
     DATASET = "dataset"
 
 
