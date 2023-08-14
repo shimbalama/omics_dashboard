@@ -19,7 +19,7 @@ class Params:
 
 
 @dataclass
-class IDs:
+class IDs: #TODO more needed
     """div ids"""
 
     name: str
@@ -43,6 +43,14 @@ class IDs:
     @property
     def select_all(self) -> str:
         return f"{self.name}_select-all"
+    
+    @property
+    def stats(self) -> str:
+        return f"{self.name}_stats"
+    
+    @property
+    def stats_out(self) -> str:
+        return f"{self.name}_stats_out"
 
     @property
     def slider1(self) -> str:
@@ -86,8 +94,9 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
     )  # title=f"Boxplot for CPMs",
     if not params.COLOUR == "test" and not params.Y == "abun":  # not phospho
         fig.update_xaxes(categoryorder="array", categoryarray=data.ordered_test_names)
-
-    fig = make_brackets(fig, data)
+    print(data)
+    if data.stats:
+        fig = make_brackets(fig, data)
     # Set layout TODO this code is duplicated in func 
     fig.update_layout(
         width=666,

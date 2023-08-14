@@ -32,6 +32,7 @@ class Data2(ABC):
     name: str
     gene: str
     ordered_test_names: list[str]
+    
 
     @abstractmethod
     def filter(self):  # prot, phos
@@ -83,6 +84,7 @@ class ProtData(Data2):
 
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
+    stats: bool = True
     # gene: str | None = None
 
     def filter(self, gene: str, tests: list[str]):
@@ -134,16 +136,23 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
     name: str
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
+    stats: bool = True
     # gene: str | None = None
 
-    def filter(self, gene: str, tests: list[str]):
+    def filter(self, gene: list[str], tests: list[str]): #, phos_sites: list[str]):
         
+        #gene is list of phospho sites and gene name from from them
+        phos_sites = gene[:]
+        gene = gene.pop().split("_")[0]
         if "ID" not in tests:
             tests.append("ID")
         df = self.df.copy()
         df = df.query("test == @tests").T
         df[Schema.GENE] = df.index
         df = df.query('gene == @gene | gene == "test"')
+        df = df.query('ID == @phos_sites | ID == "ID"')
+
+
         del df[Schema.GENE]
 
         df = df.set_index(Schema.UNQIUE_ID)
@@ -157,14 +166,13 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
         df_melted.columns = ["test", Schema.GENE, gene]
         for phos_pos, pos_df in df_melted.groupby('gene'):
             if not any(pos_df.query('test == @self.point_of_reference')[gene].notna()):
-                self.df_FDR[phos_pos] = 0.0 #tiny P values due to no CTRL data need to be zeroed
-            
-        fdr_cols = [col for col in self.df_FDR.columns if col.startswith(f"{gene}_")]
+                try: self.df_FDR[phos_pos] = 0.0 #tiny P values due to no CTRL data need to be zeroed
+                except IndexError: print('phos_pos, pos_df',phos_pos, pos_df, df_melted, sep='\n\n') #TODO - this is a hack, need to figure out why this happens. maybe cuz 846 has no data?
 
         return PhosphoProtData(
             name=self.name,
             df=df_melted,
-            df_FDR=self.df_FDR[fdr_cols + ["test"]],
+            df_FDR=self.df_FDR[phos_sites + ["test"]],
             gene=gene,
             ordered_test_names=[test for test in tests if test != 'ID'],
         )
@@ -217,6 +225,7 @@ class RNASeqData(Data2):
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
+    stats: bool = True
     # gene: str | None = None
 
     def filter(self, gene: str, tests: list[str] = None):

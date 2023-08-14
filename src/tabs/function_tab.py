@@ -4,13 +4,12 @@ from src.read_files import Data
 from src.helpers import make_list_of_dicts
 import plotly.express as px
 import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
 
 KEY = "function"
 
 
-def render(app: Dash, dataset: Data, ids2, params) -> go.Figure:
+def render(app: Dash, uninitialised_datasets: Data, ids2, params) -> go.Figure:
     def draw_line(filtered_data: Data) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
@@ -18,12 +17,12 @@ def render(app: Dash, dataset: Data, ids2, params) -> go.Figure:
         if filtered_data.plot_df.empty:
             # Data for the letters
             letters = {
-                "N": [(1, 4), (1, 1), (2, 4), (2, 1)],
-                "O": [(3, 1), (3, 4), (4, 4), (4, 1), (3, 1)],
-                "D": [(6, 1), (6, 4), (7, 4), (7, 2), (6, 1)],
-                "A": [(8, 1), (8, 4), (9, 4), (9, 1), (8, 3), (9, 3)],
-                "T": [(10, 4), (11, 4), (10.5, 4), (10.5, 1)],
-                "A2": [(12, 1), (12, 4), (13, 4), (13, 1), (12, 3), (13, 3)],
+                'N': [(1, 1), (1, 4), (2, 1), (2, 4)],
+                'O': [(3, 1), (3, 4), (4, 4), (4, 1), (3, 1)],
+                'D': [(6, 1), (6, 4), (7, 3), (7, 2), (6, 1)],
+                'A': [(8, 1), (8, 4), (9, 4), (9, 1), (8, 3), (9, 3)],
+                'T': [(10, 4), (11, 4), (10.5, 4), (10.5, 1)],
+                'A2': [(12, 1), (12, 4), (13, 4), (13, 1), (12, 3), (13, 3)]
             }
 
             # Create empty figure
@@ -39,7 +38,7 @@ def render(app: Dash, dataset: Data, ids2, params) -> go.Figure:
             fig.update_yaxes(showticklabels=False, zeroline=False)
 
             # Set layout
-            fig.update_layout(width=666, height=666)
+            fig.update_layout(width=666, height=444)
 
             return fig
 
@@ -117,6 +116,8 @@ def render(app: Dash, dataset: Data, ids2, params) -> go.Figure:
             ),
         )
         fig.update_layout(modebar_orientation='v')
+        fig.update_xaxes(title = fig.layout.xaxis.title.text + ' (μM)')
+
         return fig
 
     @app.callback(Output("func_DATA_DROP", "options"), Input("func_drug_drop", "value"))
@@ -158,6 +159,8 @@ def render(app: Dash, dataset: Data, ids2, params) -> go.Figure:
 
         return draw_line(filtered_data)
 
+    func, path = uninitialised_datasets
+    dataset = func(path)
     default_drug = list(dataset.test_names)[0]
     default_conditions = dataset.possible_condition_names(default_drug)
     default_datasets = dataset.possible_dataset_names(default_drug)

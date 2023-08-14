@@ -1,7 +1,7 @@
 from dash import Dash
 
 # from multiprocessing import Pool
-from dash_bootstrap_components.themes import BOOTSTRAP, CYBORG, DARKLY
+from dash_bootstrap_components.themes import BOOTSTRAP
 from src.read_files import (
     load_RNAseq_data,
     load_phospho_data,
@@ -32,7 +32,7 @@ READERS = {
 
 def read_all(path: Path):  # might have to chnage htis to read on demand??
     return path.name, {
-        sub_path.name: READERS.get(path.name)(sub_path)
+        sub_path.name: (READERS.get(path.name), sub_path)
         for sub_path in path.glob("*")
         if not rubbish(sub_path.name)
     }

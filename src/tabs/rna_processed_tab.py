@@ -8,8 +8,12 @@ from src.helpers import make_list_of_dicts
 
 KEY = "rna_bulk"
 
-def render(app: Dash, datasets: dict[str, Data], ids2, params) -> html.Div:
+
+def render(
+    app: Dash, uninitialised_datasets: dict[str, Data], ids2, params
+) -> html.Div:
     # get comparisons
+
     def draw_volcano(df, genomic_line, effect_lims):
         return dash_bio.VolcanoPlot(
             dataframe=df,
@@ -57,6 +61,10 @@ def render(app: Dash, datasets: dict[str, Data], ids2, params) -> html.Div:
         df = df.reset_index(drop=True)
         return draw_volcano(df, genomic_line, effect_lims)
 
+    datasets = {}
+    for k, v in uninitialised_datasets.items():
+        func, path = v
+        datasets[k] = func(path)
     dataset_names = list(datasets.keys())
     first_dataset = datasets[dataset_names[0]]
     default_comparison = list(first_dataset.processed_dfs.keys())[0]
@@ -96,6 +104,7 @@ def render(app: Dash, datasets: dict[str, Data], ids2, params) -> html.Div:
                 min=0,
                 step=0.01,
                 marks={str(num): str(num) for num in range(0, 11, 2)},
+                tooltip={"placement": "bottom", "always_visible": False},
             ),
             html.H6("Effect-size"),
             dcc.RangeSlider(
@@ -105,6 +114,7 @@ def render(app: Dash, datasets: dict[str, Data], ids2, params) -> html.Div:
                 value=[-1, 1],
                 step=0.01,
                 marks={str(num): str(num) for num in range(-4, 5)},
+                tooltip={"placement": "bottom", "always_visible": False},
             ),
             html.Div(
                 dcc.Graph(
