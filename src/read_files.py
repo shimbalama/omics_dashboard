@@ -90,7 +90,6 @@ class ProtData(Data2):
     def filter(self, gene: str, tests: list[str], stats: dict[str, bool]) -> "ProtData":
         df = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test"])
-        print(11111,df, sep='\n')
         return ProtData(
             name=self.name,
             df=df,
@@ -533,8 +532,8 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
-    df.to_csv(f"~/Downloads/{path.stem}_df.csv")
+    # df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
+    # df.to_csv(f"~/Downloads/{path.stem}_df.csv")
     return PhosphoProtData(
         name=path.stem,
         df=df,

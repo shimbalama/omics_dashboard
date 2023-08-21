@@ -5,7 +5,7 @@ from src.read_files import Data
 from typing import Any
 from src.helpers import draw_box_chart, Params, IDs, make_list_of_dicts
 import dash_bootstrap_components as dbc
-from dash import Dash, dcc, html, Input, Output, callback
+from dash import Dash, dcc, html, Input, Output, callback, callback_context
 import dash_daq as daq
 
 
@@ -16,13 +16,17 @@ def download(app, ids: IDs, datasets: dict[str, Data]):
         Input(ids.data_drop, "value"),
         Input(ids.gene_drop, "value"),
         Input(ids.tests_drop, "value"),
+        Input("phos_site_drop", "value"),
         prevent_initial_call=True,
     )
-    def func(n_clicks, dataset: str, gene: str, tests: list[str]):
-        selected_data = datasets[dataset]
-        stats_d = {"brackets": 'stats', "log": 'log'}
-        filtered: Data = selected_data.filter(gene, tests, {})
-        return dcc.send_data_frame(filtered.plot_df.to_csv, "mydf.csv")
+    def func(n_clicks, dataset: str, gene: str, tests: list[str], phos):
+        if 'csv' in callback_context.triggered_id:
+            selected_data = datasets[dataset]
+            if callback_context.triggered_id == 'Phosphoproteomics_csv':
+                filtered: Data = selected_data.filter(phos, tests, {})
+            else:
+                filtered: Data = selected_data.filter(gene, tests, {})
+            return dcc.send_data_frame(filtered.plot_df.to_csv, "mydf.csv")
 
 
 def tog_stat(app, ids: IDs):
@@ -74,7 +78,6 @@ def box(app, ids: IDs, datasets: dict[str, Data], params: type):
         selected_data = datasets[dataset]
         stats_d = {"brackets": stats, "log": log}
         filtered: Data = selected_data.filter(gene, tests, stats_d)
-        print("filtered", filtered)
         return draw_box_chart(filtered, params, ids.plot)
 
 
@@ -248,7 +251,7 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
                 ),
                 dbc.Col(
                     [
-                        html.Button("Download CSV", id=ids.csv),
+                        html.Button("Download CSV", id=ids.csv, n_clicks=0),
                         dcc.Download(id=ids.csv_out),
                     ],
                     width=2,
