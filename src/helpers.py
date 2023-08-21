@@ -13,13 +13,17 @@ class Params:
 
     name: str
     X: str
-    COLOUR: str | None = None
-    LOG: bool = False
+    x_axis_title: str | None = None
+    y_axis_title: str | None = None
     Y: str | None = None
+    COLOUR: str | None = None
+    class_name: str = "control-tab"
+    legend_title: str | None = None
+    #LOG: bool = False
 
 
 @dataclass
-class IDs: #TODO more needed
+class IDs:  # TODO more needed
     """div ids"""
 
     name: str
@@ -43,14 +47,30 @@ class IDs: #TODO more needed
     @property
     def select_all(self) -> str:
         return f"{self.name}_select-all"
-    
+
     @property
     def stats(self) -> str:
         return f"{self.name}_stats"
-    
+
     @property
     def stats_out(self) -> str:
-        return f"{self.name}_stats_out"
+        return f"{self.name}_stats-out"
+    
+    @property
+    def log(self) -> str:
+        return f"{self.name}_log"
+
+    @property
+    def log_out(self) -> str:
+        return f"{self.name}_log-out"
+    
+    @property
+    def csv(self) -> str:
+        return f"{self.name}_csv"
+
+    @property
+    def csv_out(self) -> str:
+        return f"{self.name}_csv-out"
 
     @property
     def slider1(self) -> str:
@@ -75,32 +95,32 @@ def get_y_range(number_of_comparisons: int, interline: float = 0.03) -> np.ndarr
     return y_range
 
 
-def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.Div:
+def draw_box_chart(data: Data, params: type, plot_id: str) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     test and overlays the respective FDR value"""
 
-    df: pd.DataFrame = data.plot_df
+    print(33333, data.plot_df, data, params, sep="\n")
     fig = px.box(
-        df,
+        data.plot_df,
         x=params.X,
-        y=y_gene,
+        y=data.gene,
         points="all",
         width=666,
         height=666,
         color=params.COLOUR,  # TODO
-        log_y=params.LOG,
-        labels={y_gene: "CPM"},
+        log_y=data.stats['log'],
         facet_row_spacing=0.75,
-    )  # title=f"Boxplot for CPMs",
-    if not params.COLOUR == "test" and not params.Y == "abun":  # not phospho
+    )  # title=f"Boxplot for CPMs",labels={y_gene: "CPM"},
+    if not params.name == "Phosphoproteomics":
         fig.update_xaxes(categoryorder="array", categoryarray=data.ordered_test_names)
-    print(data)
-    if data.stats:
-        fig = make_brackets(fig, data)
-    # Set layout TODO this code is duplicated in func 
+    # if data.stats[0]:
+    fig = make_brackets(fig, data)
+    # Set layout TODO this code is duplicated in func
     fig.update_layout(
-        width=666,
-        height=666,
+        modebar_orientation="v",
+        xaxis_title=params.x_axis_title,
+        yaxis_title=params.y_axis_title,
+        legend_title=params.legend_title,
         legend=dict(
             orientation="h",
             entrywidth=333,
@@ -110,7 +130,8 @@ def draw_box_chart(data: Data, y_gene: str, params: type, plot_id: str) -> html.
             x=1,
         ),
     )
-    fig.update_layout(modebar_orientation='v')
+
+    # fig.update_layout()
 
     return html.Div(dcc.Graph(figure=fig), id=plot_id)
 
@@ -135,8 +156,8 @@ def make_brackets(fig: go.Figure, data: Data) -> go.Figure:
         y_range = get_y_range(len(data.test_names))
         point_of_reference = get_point_of_reference(data)
         if isinstance(data.df_FDR, pd.DataFrame):
-            if len(data.df_FDR.columns) == 2 and 'test' in data.df_FDR.columns:
-                #issue #27 - only bracket if 1 pos... (from James)
+            if len(data.df_FDR.columns) == 2 and "test" in data.df_FDR.columns:
+                # issue #27 - only bracket if 1 pos... (from James)
                 for i, phos_pos in enumerate(data.df_FDR.columns):
                     if phos_pos != "test":
                         sub_poses = get_sub_poses(len(data.test_names), i)
@@ -163,30 +184,46 @@ def add_bracket_per_test(
     add_annotation: bool = True,
     prot_pos: str | None = None,
     sub_poses: str | None = None,
-) -> go.Figure:
+) -> go.Figure:  # TODO fix this mess
     """Adds notations giving the significance level between two box plot data"""
     for i, test in enumerate(data.ordered_test_names):
         if test == data.point_of_reference:
             assert i == point_of_reference
+            fig = add_annotations_per_test(fig, data, '', test)
             continue
         FDR = data.get_FDR(test, prot_pos) if prot_pos else data.get_FDR(test)
-        POR = sub_poses[point_of_reference] if sub_poses else point_of_reference
-        x = sub_poses[i] if sub_poses else i
-        bracket = Bracket(x_POR=POR, x_other=x, y_range=y_range, y_pos=i, FDR=FDR)
 
-        fig = add_FDR_brackets(fig, bracket)
+        if data.stats['brackets']:
+            POR = sub_poses[point_of_reference] if sub_poses else point_of_reference
+            x = sub_poses[i] if sub_poses else i
+            bracket = Bracket(x_POR=POR, x_other=x, y_range=y_range, y_pos=i, FDR=FDR)
+            fig = add_FDR_brackets(fig, bracket)
+            fig.update_layout(margin=dict(t=i * 15))
 
-        if add_annotation:
-            fig.add_annotation(
-                x=test,
-                y=data.get_median_CPMs(test),
-                text=f"{FDR:.1e}",
-                yshift=10,
-                showarrow=False,
-                font=dict(color="black", size=10),
-            )
+        if add_annotation:  # need this or cols with all nan excluded
+            if data.stats['brackets']:
+                FDR = f"{FDR:.1e}"
+            else:
+                FDR = ""
+            fig = add_annotations_per_test(fig, data, FDR, test)
 
-        fig.update_layout(margin=dict(t=i * 22))
+    return fig
+
+
+def add_annotations_per_test(
+    fig: go.Figure, data: Data, FDR: str, test: str
+) -> go.Figure:
+    """Adds notations giving the significance level between two box plot data
+    or add blank annotations if all data nan (required to keep it in plot)"""
+
+    fig.add_annotation(
+        x=test,
+        y=data.get_median_CPMs(test),
+        text=FDR,
+        yshift=10,
+        showarrow=False,
+        font=dict(color="black", size=10),
+    )
 
     return fig
 
@@ -264,7 +301,8 @@ class Bracket:
 
 
 def add_FDR_brackets(fig: go.Figure, bracket: Bracket) -> go.Figure:
-    """Adds notations giving the significance level between two box plot data (t-test two-sided test)
+    """Adds notations giving the significance level between two box plot
+    data (t-test two-sided test)
 
     Parameters:
     ----------

@@ -23,7 +23,7 @@ class Data(Protocol):
     def point_of_reference():  # still?TODO
         ...
 
-    def plot_df():  # maybe plot df?
+    def plot_df():
         ...
 
 
@@ -32,7 +32,7 @@ class Data2(ABC):
     name: str
     gene: str
     ordered_test_names: list[str]
-    
+    stats: dict[str, bool]
 
     @abstractmethod
     def filter(self):  # prot, phos
@@ -84,18 +84,20 @@ class ProtData(Data2):
 
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
-    stats: bool = True
+    # stats: bool = True
     # gene: str | None = None
 
-    def filter(self, gene: str, tests: list[str]):
+    def filter(self, gene: str, tests: list[str], stats: dict[str, bool]) -> "ProtData":
         df = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test"])
+        print(11111,df, sep='\n')
         return ProtData(
             name=self.name,
             df=df,
             df_FDR=self.df_FDR[gene],
             gene=gene,
-            ordered_test_names=[test for test in tests if test != 'ID'],
+            ordered_test_names=[test for test in tests if test != "ID"],
+            stats=stats,
         )
 
     @property
@@ -133,15 +135,14 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
         lengths of homolymers
     """
     ###TODO DataFrame columns are not unique, some columns will be omitted.UserWarning
-    name: str
+    # name: str
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
-    stats: bool = True
+    # stats: bool = True
     # gene: str | None = None
 
-    def filter(self, gene: list[str], tests: list[str]): #, phos_sites: list[str]):
-        
-        #gene is list of phospho sites and gene name from from them
+    def filter(self, gene: list[str], tests: list[str], stats: dict[str, bool]):  # , phos_sites: list[str]):
+        # gene is list of phospho sites and gene name from from them
         phos_sites = gene[:]
         gene = gene.pop().split("_")[0]
         if "ID" not in tests:
@@ -151,7 +152,6 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
         df[Schema.GENE] = df.index
         df = df.query('gene == @gene | gene == "test"')
         df = df.query('ID == @phos_sites | ID == "ID"')
-
 
         del df[Schema.GENE]
 
@@ -164,17 +164,24 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
             value_name=gene,
         )
         df_melted.columns = ["test", Schema.GENE, gene]
-        for phos_pos, pos_df in df_melted.groupby('gene'):
-            if not any(pos_df.query('test == @self.point_of_reference')[gene].notna()):
-                try: self.df_FDR[phos_pos] = 0.0 #tiny P values due to no CTRL data need to be zeroed
-                except IndexError: print('phos_pos, pos_df',phos_pos, pos_df, df_melted, sep='\n\n') #TODO - this is a hack, need to figure out why this happens. maybe cuz 846 has no data?
+        for phos_pos, pos_df in df_melted.groupby("gene"):
+            if not any(pos_df.query("test == @self.point_of_reference")[gene].notna()):
+                try:
+                    self.df_FDR[
+                        phos_pos
+                    ] = 0.0  # tiny P values due to no CTRL data need to be zeroed
+                except IndexError:
+                    print(
+                        "phos_pos, pos_df", phos_pos, pos_df, df_melted, sep="\n\n"
+                    )  # TODO - this is a hack, need to figure out why this happens. maybe cuz 846 has no data?
 
         return PhosphoProtData(
             name=self.name,
             df=df_melted,
             df_FDR=self.df_FDR[phos_sites + ["test"]],
             gene=gene,
-            ordered_test_names=[test for test in tests if test != 'ID'],
+            ordered_test_names=[test for test in tests if test != "ID"],
+            stats=stats,
         )
 
     def get_FDR(self, test, prot_pos=None):
@@ -221,14 +228,14 @@ class RNASeqData(Data2):
         lengths of homolymers
     """
 
-    name: str
+    # name: str
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
-    stats: bool = True
+    # stats: bool = True
     # gene: str | None = None
 
-    def filter(self, gene: str, tests: list[str] = None):
+    def filter(self, gene: str, tests: list[str], stats: dict[str, bool]): #tests: list[str] = None,
         df: pl.DataFrame = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test", "point_of_ref"])
         return RNASeqData(
@@ -237,7 +244,8 @@ class RNASeqData(Data2):
             df_FDR=self.df_FDR[gene],
             processed_dfs=self.processed_dfs,
             gene=gene,
-            ordered_test_names=[test for test in tests if test != 'ID'],
+            ordered_test_names=[test for test in tests if test != "ID"],
+            stats=stats,
         )
 
     # TODO - post init to check that indexes are equal. found examples of missign and duplicates gene names
@@ -321,8 +329,8 @@ def read_CPM(path: Path) -> pl.DataFrame:
     fin = list(path.glob("*.csv"))
     if fin:
         fin = fin.pop()
-        #df = pl.read_csv(str(fin)).to_pandas(use_pyarrow_extension_array=True)
-        df = pd.read_csv(fin)#TODO como
+        # df = pl.read_csv(str(fin)).to_pandas(use_pyarrow_extension_array=True)
+        df = pd.read_csv(fin)  # TODO como
         df = make_index(df)
         df = df.T.iloc[3:]
         names: list[str] = list(df.index)
@@ -356,6 +364,7 @@ def load_RNAseq_data(path: Path) -> RNASeqData:
         processed_dfs=FDR,
         gene="NA",
         ordered_test_names=["NA"],
+        stats={'log': False, 'brackets': True},
     )
 
 
@@ -480,13 +489,14 @@ def load_prot_data(path: Path) -> ProtData:
     preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    #df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
+    # df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
     return ProtData(
         name=path.stem,
         df=pl.from_pandas(df),
         df_FDR=df_FDR,
         gene="NA",
         ordered_test_names=["NA"],
+        stats={'log': False, 'brackets': True},
     )
 
 
@@ -523,10 +533,15 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    #df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
-    #df.to_csv(f"~/Downloads/{path.stem}_df.csv")
+    df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
+    df.to_csv(f"~/Downloads/{path.stem}_df.csv")
     return PhosphoProtData(
-        name=path.stem, df=df, df_FDR=df_FDR, gene="NA", ordered_test_names=["NA"]
+        name=path.stem,
+        df=df,
+        df_FDR=df_FDR,
+        gene="NA",
+        ordered_test_names=["NA"],
+        stats={'log': True, 'brackets': True},
     )
 
 
@@ -837,7 +852,7 @@ def load_function_data(path: Path) -> FunctionData:
         df = preprocessor(df)
         normalized_df = df.groupby("Drug", group_keys=True).apply(normalize_group)
         normalized_df = normalized_df.reset_index(level=["Drug"])
-        #normalized_df.to_csv("~/Downloads/normalized_dfgg.csv")
+        # normalized_df.to_csv("~/Downloads/normalized_dfgg.csv")
         sub_dfs = []
         for name, drug_df in df.groupby(SchemaFunction.DRUG):
             mapping = get_mappings(

@@ -1,17 +1,43 @@
-from dash import Dash, dcc, html
+# from dash import Dash, dcc, html
 from src.read_files import Data
-from dash.dependencies import Input, Output
+
+# from dash.dependencies import Input, Output
 from typing import Any
 from src.helpers import draw_box_chart, Params, IDs, make_list_of_dicts
-
-from dash import Dash, html, Input, Output, callback
+import dash_bootstrap_components as dbc
+from dash import Dash, dcc, html, Input, Output, callback
 import dash_daq as daq
+
+
+def download(app, ids: IDs, datasets: dict[str, Data]):
+    @callback(
+        Output(ids.csv_out, "data"),
+        Input(ids.csv, "n_clicks"),
+        Input(ids.data_drop, "value"),
+        Input(ids.gene_drop, "value"),
+        Input(ids.tests_drop, "value"),
+        prevent_initial_call=True,
+    )
+    def func(n_clicks, dataset: str, gene: str, tests: list[str]):
+        selected_data = datasets[dataset]
+        stats_d = {"brackets": 'stats', "log": 'log'}
+        filtered: Data = selected_data.filter(gene, tests, {})
+        return dcc.send_data_frame(filtered.plot_df.to_csv, "mydf.csv")
 
 
 def tog_stat(app, ids: IDs):
     @callback(
         Output(ids.stats_out, "value"),
         Input(ids.stats, "value"),
+    )
+    def update_output(value):
+        return value
+
+
+def tog_log(app, ids: IDs):
+    @callback(
+        Output(ids.log_out, "value"),
+        Input(ids.log, "value"),
     )
     def update_output(value):
         return value
@@ -38,17 +64,18 @@ def box(app, ids: IDs, datasets: dict[str, Data], params: type):
         Input(ids.gene_drop, "value"),
         Input(ids.tests_drop, "value"),
         Input(ids.stats_out, "value"),
+        Input(ids.log_out, "value"),
     )
     def update_box_chart(
-        dataset: str, gene: str, tests: list[str], stat: bool
+        dataset: str, gene: str, tests: list[str], stats: bool, log: bool
     ) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
         selected_data = datasets[dataset]
-        filtered: Data = selected_data.filter(gene, tests)
-        filtered.stats = stat
-
-        return draw_box_chart(filtered, gene, params, ids.plot)
+        stats_d = {"brackets": stats, "log": log}
+        filtered: Data = selected_data.filter(gene, tests, stats_d)
+        print("filtered", filtered)
+        return draw_box_chart(filtered, params, ids.plot)
 
 
 def test_dropdown(app, ids: IDs, datasets: dict[str, Data]):
@@ -89,6 +116,7 @@ def phospho_site_dropdown(app, ids: IDs, datasets: dict[str, Data]):
         filtered: Data = selected_data.filter(
             [col for col in selected_data.df_FDR.columns if col.startswith(f"{gene}_")],
             tests,
+            True,
         )
         return make_list_of_dicts(
             [phos for phos in list(filtered.df_FDR.columns) if phos != "test"]
@@ -115,16 +143,24 @@ def phospho_site_box(app, ids: IDs, datasets: dict[str, Data], params: type):
         Input(ids.gene_drop, "value"),
         Input(ids.tests_drop, "value"),
         Input("phos_site_drop", "value"),
+        Input(ids.stats_out, "value"),
+        Input(ids.log_out, "value"),
     )
     def update_box_chart(
-        dataset: str, gene: str, tests: list[str], phos_sites: list[str]
+        dataset: str,
+        gene: str,
+        tests: list[str],
+        phos_sites: list[str],
+        stats: bool,
+        log: bool,
     ) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
+        stats_d = {"brackets": stats, "log": log}
         selected_data = datasets[dataset]
-        filtered: Data = selected_data.filter(phos_sites, tests)
+        filtered: Data = selected_data.filter(phos_sites, tests, stats_d)
 
-        return draw_box_chart(filtered, gene, params, ids.plot)
+        return draw_box_chart(filtered, params, ids.plot)
 
 
 def get_defaults(datasets: dict[str, Data], params) -> tuple[str, Data, list[str]]:
@@ -133,61 +169,130 @@ def get_defaults(datasets: dict[str, Data], params) -> tuple[str, Data, list[str
     if params.name == "Phosphoproteomics":
         first_gene = sorted(first_dataset.df.columns)[0]
         dataset = first_dataset.filter(
-            [sorted(first_dataset.df_FDR.columns)[0]], list(first_dataset.test_names)
+            [sorted(first_dataset.df_FDR.columns)[0]],
+            list(first_dataset.test_names),
+            {"brackets": True, "log": True},
         )
     else:
         first_gene = first_dataset.df.columns[0]
-        dataset = first_dataset.filter(first_gene, list(first_dataset.test_names))
+        dataset = first_dataset.filter(
+            first_gene, list(first_dataset.test_names), {"brackets": True, "log": False}
+        )
 
-    return first_gene, dataset, dataset_names
+    return dataset, dataset_names
 
 
 def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
-    first_gene, dataset, dataset_names = get_defaults(datasets, params)
+    dataset, dataset_names = get_defaults(datasets, params)
+
     children = [
-        html.H6("Dataset"),
-        dcc.Dropdown(
-            id=ids.data_drop,
-            options=dataset_names,
-            value=dataset_names[0],
-            multi=False,
+        dbc.Row(
+            [
+                dbc.Col(html.H6("Dataset"), width=4),
+                dbc.Col(html.H6("Gene"), width=3),
+            ]
         ),
-        html.H6("Gene"),
-        dcc.Dropdown(
-            id=ids.gene_drop,
+        dbc.Row(
+            [
+                dbc.Col(
+                    dcc.Dropdown(
+                        id=ids.data_drop,
+                        options=dataset_names,
+                        value=dataset_names[0],
+                        multi=False,
+                    ),
+                    width=4,
+                ),
+                dbc.Col(
+                    dcc.Dropdown(
+                        id=ids.gene_drop,
+                    ),
+                    width=3,
+                ),
+            ]
         ),
-        html.H6("Test"),
-        dcc.Dropdown(
-            id=ids.tests_drop,
-            multi=True,
+        dbc.Row(
+            [
+                dbc.Col(html.H6("Test"), width=7),
+            ]
         ),
-        html.Button(
-            className="dropdown-button",
-            children=["Select All"],
-            id=ids.select_all,
-            n_clicks=0,
+        dbc.Row(
+            [
+                dbc.Col(
+                    dcc.Dropdown(
+                        id=ids.tests_drop,
+                        multi=True,
+                    ),
+                    width=7,
+                ),
+            ]
         ),
-        daq.ToggleSwitch(id=ids.stats, value=True, label='Stats'),
+        dbc.Row(
+            [
+                dbc.Col(
+                    html.Button(
+                        className="dropdown-button",
+                        children=["Select All"],
+                        id=ids.select_all,
+                        n_clicks=0,
+                    ),
+                    width=3,
+                ),
+                dbc.Col(
+                    daq.ToggleSwitch(id=ids.stats_out, value=True, label="Stats"),
+                    width=1,
+                ),
+                dbc.Col(
+                    daq.ToggleSwitch(id=ids.log_out, value=True, label="Log10"),
+                    width=1,
+                ),
+                dbc.Col(
+                    [
+                        html.Button("Download CSV", id=ids.csv),
+                        dcc.Download(id=ids.csv_out),
+                    ],
+                    width=2,
+                ),
+            ],
+        ),
     ]
     if params.name == "Phosphoproteomics":
         children += [
-            html.H6("Phospho Site"),
-            dcc.Dropdown(
-                id="phos_site_drop",
-                multi=True,
-                persistence=True,
-                persistence_type="session",
+            dbc.Row(
+                [
+                    dbc.Col(html.H6("Phospho Site"), width=3),
+                ]
             ),
-            html.Button(
-                className="dropdown-button",
-                children=["Select All"],
-                id="phos_site_drop_select_all",
-                n_clicks=0,
+            dbc.Row(
+                [
+                    dbc.Col(
+                        dcc.Dropdown(
+                            id="phos_site_drop",
+                            multi=True,
+                            persistence=True,
+                            persistence_type="session",
+                        ),
+                        width=7,
+                    ),
+                ]
             ),
-            html.Div(draw_box_chart(dataset, first_gene, params, ids.plot)),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        html.Button(
+                            className="dropdown-button",
+                            children=["Select All"],
+                            id="phos_site_drop_select_all",
+                            n_clicks=0,
+                        ),
+                        width=5,
+                    )
+                ]
+            ),
+            html.Div(draw_box_chart(dataset, params, ids.plot)),
         ]
     else:
-        children += [html.Div(draw_box_chart(dataset, first_gene, params, ids.plot))]
+        children += [html.Div(draw_box_chart(dataset, params, ids.plot))]
 
     return children
 
@@ -201,6 +306,9 @@ def render(app: Dash, datasets: dict[str, Data], ids: IDs, params: Params) -> ht
     gene_dropdown_default(app, ids)
     test_dropdown(app, ids, initialised_datasets)
     test_dropdown_select_all(app, ids)
+    tog_stat(app, ids)
+    tog_log(app, ids)
+    download(app, ids, initialised_datasets)
     if params.name == "Phosphoproteomics":
         phospho_site_dropdown(app, ids, initialised_datasets)
         phospho_site_dropdown_select_all(app, ids)

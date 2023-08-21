@@ -1,6 +1,7 @@
 from dash import Dash, html, dcc
-import dash_loading_spinners
-from dash.dependencies import Input, Output, State
+
+# import dash_loading_spinners
+# from dash.dependencies import Input, Output, State
 
 from ..tabs import box_tabs, rna_processed_tab, text_tab1, text_tab2, function_tab
 from src.read_files import Data
@@ -19,30 +20,25 @@ def tab_layout(name: str, subtabs_id: str, *args) -> dcc.Tab:
 def sub_tab_layout(
     app: Dash,
     data: dict[str, Data],
-    name: str,
+    params: Params,
     rendering,
-    class_name: str = "control-tab",
-):
+) -> dcc.Tab:
     """Defines base unit of UI"""
-    ids = IDs(name)
-    params = (
-        Params(name=name, X="gene", COLOUR="test", LOG=True, Y="abun")
-        if name == "Phosphoproteomics"
-        else Params(name=name, X="test")
-    )
+    ids = IDs(params.name)
+  
     return dcc.Tab(
-        label=name,
-        value=name,
+        label=params.name,
+        value=params.name,
         children=html.Div(
-            className=class_name,
+            className=params.class_name,
             children=[
                 html.Div(
-                    className=class_name,
+                    className=params.class_name,
                     children=[
                         html.H1(app.title),
                         html.Hr(),
                         html.Div(
-                            className=class_name,
+                            className=params.class_name,
                             children=[rendering.render(app, data, ids, params)],
                         ),
                     ],
@@ -52,8 +48,9 @@ def sub_tab_layout(
     )
 
 
-#def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
- 
+# def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
+
+
 def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
     """Create the layout for Dash application.
 
@@ -82,23 +79,44 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                     "User guide",
                                     "subtabs_id0",
                                     sub_tab_layout(
-                                        app, data, "Introduction", text_tab1
+                                        app,
+                                        data,
+                                        Params(name="Introduction", X="test"),
+                                        text_tab1,
                                     ),
-                                    sub_tab_layout(app, data, "Input_files", text_tab2),
+                                    sub_tab_layout(
+                                        app,
+                                        data,
+                                        Params(name="Input_files", X="test"),
+                                        text_tab2,
+                                    ),
                                 ),
                                 tab_layout(
                                     "RNA",
                                     "subtabs_id1",
                                     sub_tab_layout(
-                                        app, data["rna_bulk"], "CPM", box_tabs
+                                        app,
+                                        data["rna_bulk"],
+                                        Params(
+                                            name="CPM",
+                                            X="test",
+                                            y_axis_title="CPM",
+                                            x_axis_title="Condition",
+                                        ),
+                                        box_tabs,
                                     ),
                                     sub_tab_layout(
                                         app,
                                         data["rna_bulk"],
-                                        "Volcano",
+                                        Params(name="Volcano", X="test"),
                                         rna_processed_tab,
                                     ),
-                                    sub_tab_layout(app, data, "scRNA", text_tab1),
+                                    sub_tab_layout(
+                                        app,
+                                        data,
+                                        Params(name="scRNA", X="test"),
+                                        text_tab1,
+                                    ),
                                 ),
                                 tab_layout(
                                     "Protein",
@@ -106,13 +124,26 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                     sub_tab_layout(
                                         app,
                                         data["proteomics"],
-                                        "Proteins",
+                                        Params(
+                                            name="Proteins",
+                                            X="test",
+                                            y_axis_title="Protein abundance",
+                                            x_axis_title="Condition",
+                                        ),
                                         box_tabs,
                                     ),
                                     sub_tab_layout(
                                         app,
                                         data["phosphoproteomics"],
-                                        "Phosphoproteomics",
+                                        Params(
+                                            name="Phosphoproteomics",
+                                            X="gene",
+                                            COLOUR="test",
+                                            Y="abun",
+                                            x_axis_title="Phosphopeptide",
+                                            y_axis_title="Phosphopeptide abundance",
+                                            legend_title="Condition",
+                                        ),
                                         box_tabs,
                                     ),
                                 ),
@@ -122,7 +153,7 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                     sub_tab_layout(
                                         app,
                                         data["function"]["test"],
-                                        "Function",
+                                        Params(name="Function", X="test"),
                                         function_tab,
                                     ),
                                 ),
@@ -135,16 +166,16 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
     )
 
 
-   # @app.callback(
-    #     Output("div-loading", "children"),
-    #     [Input("div-app", "loading_state")],
-    #     [
-    #         State("div-loading", "children"),
-    #     ],
-    # )
-    # def hide_loading_after_startup(loading_state, children):
-    #     if children:
-    #         print("remove loading spinner!")
-    #         return None
-    #     print("spinner already gone!")
-    #     raise PreventUpdate
+# @app.callback(
+#     Output("div-loading", "children"),
+#     [Input("div-app", "loading_state")],
+#     [
+#         State("div-loading", "children"),
+#     ],
+# )
+# def hide_loading_after_startup(loading_state, children):
+#     if children:
+#         print("remove loading spinner!")
+#         return None
+#     print("spinner already gone!")
+#     raise PreventUpdate

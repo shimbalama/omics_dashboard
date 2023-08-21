@@ -50,7 +50,7 @@ def main() -> None:
     auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
     app.title = "Omics dashboard"
     app.layout = create_layout(app, data)
-    app.run_server(debug=True, host="0.0.0.0", port=8080)
+    app.run_server(debug=False, host="0.0.0.0", port=8080)
 
 
 if __name__ == "__main__":
