@@ -1,12 +1,12 @@
 # from dash import Dash, dcc, html
 from src.read_files import Data
-
-# from dash.dependencies import Input, Output
 from typing import Any
 from src.helpers import draw_box_chart, Params, IDs, make_list_of_dicts
 import dash_bootstrap_components as dbc
 from dash import Dash, dcc, html, Input, Output, callback, callback_context
 import dash_daq as daq
+from multiprocessing import Pool
+from functools import partial
 
 
 def download(app, ids: IDs, datasets: dict[str, Data]):
@@ -20,9 +20,9 @@ def download(app, ids: IDs, datasets: dict[str, Data]):
         prevent_initial_call=True,
     )
     def func(n_clicks, dataset: str, gene: str, tests: list[str], phos):
-        if 'csv' in callback_context.triggered_id:
+        if "csv" in callback_context.triggered_id:
             selected_data = datasets[dataset]
-            if callback_context.triggered_id == 'Phosphoproteomics_csv':
+            if callback_context.triggered_id == "Phosphoproteomics_csv":
                 filtered: Data = selected_data.filter(phos, tests, {})
             else:
                 filtered: Data = selected_data.filter(gene, tests, {})
@@ -296,15 +296,18 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
         ]
     else:
         children += [html.Div(draw_box_chart(dataset, params, ids.plot))]
-
+    for line in dataset.blurb:
+        children += [html.P('\t'+line)]
     return children
 
 
 def render(app: Dash, datasets: dict[str, Data], ids: IDs, params: Params) -> html.Div:
     initialised_datasets = {}
-    for k, v in datasets.items():
-        func, path = v
-        initialised_datasets[k] = func(path)
+
+    with Pool(processes=3) as pool:
+        for k, result in pool.imap_unordered(call_funk, datasets.items()):
+            initialised_datasets[k] = result
+
     gene_dropdown(app, ids, initialised_datasets)
     gene_dropdown_default(app, ids)
     test_dropdown(app, ids, initialised_datasets)
@@ -319,3 +322,9 @@ def render(app: Dash, datasets: dict[str, Data], ids: IDs, params: Params) -> ht
     else:
         box(app, ids, initialised_datasets, params)
     return html.Div(children=dropdowns(initialised_datasets, params, ids))
+
+
+def call_funk(tup):
+    k, v = tup
+    func, path = v
+    return k, func(path)

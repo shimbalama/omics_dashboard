@@ -13,7 +13,9 @@ from pathlib import Path
 from src.helpers import rubbish
 from time import time
 import json
+from loguru import logger
 
+logger.add("file_{time}.log")
 import dash_auth
 
 # Keep this out of source code repository - save in a file or a database
@@ -38,6 +40,7 @@ def read_all(path: Path):  # might have to chnage htis to read on demand??
     }
 
 
+@logger.catch
 def main() -> None:
     start = time()
     data_folders = [path for path in DATA_PATH.glob("*") if not rubbish(path.name)]

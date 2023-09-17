@@ -6,92 +6,99 @@ import polars as pl
 import numpy as np
 from collections import Counter, defaultdict
 from abc import ABC, abstractmethod, abstractproperty
+from loguru import logger
 
 from functools import partial, reduce
 from typing import Callable
-
+from icecream import ic
 
 def rubbish(name: str) -> bool:
+    """Returns True if file is rubbish"""
     return name.startswith((".", "~"))
 
 
 class Data(Protocol):
+    """Protocol for data classes"""
+
     def filter():
         """Returns a filtred version of the data"""
         ...
 
     def point_of_reference():  # still?TODO
+        """Returns the point of reference for the data"""
         ...
 
     def plot_df():
+        """Returns a dataframe that can be plotted"""
         ...
 
 
 @dataclass(slots=True, frozen=True)
 class Data2(ABC):
+    """Abstract class for data classes"""
+
     name: str
+    blurb: str
     gene: str
     ordered_test_names: list[str]
     stats: dict[str, bool]
 
     @abstractmethod
-    def filter(self):  # prot, phos
+    def filter(self):
         """Returns a filtred version of the data"""
         pass
 
     @abstractproperty
-    def plot_df(self):  # prot, phos
+    def plot_df(self):
+        """Returns a dataframe that can be plotted"""
         pass
 
     @abstractproperty
-    def test_names(self):  # prot, phos
+    def test_names(self):
+        """Returns a list of test names"""
         pass
 
     @abstractproperty
-    def point_of_reference(self):  # still?TODO #prot, phos
+    def point_of_reference(self):
+        """Returns the point of reference for the data"""
         pass
+
 
     def get_FDR(self, test, prot_pos=None):
+        """Returns the FDR for a given test"""
         try:
             return self.df_FDR[test]
         except KeyError:
             return 0.0
 
     def get_median_CPMs(self, test, prot_pos=None):
+        """Returns the median CPMs for a given test"""
         return np.median(self.plot_df.query("test == @test")[self.gene])
 
 
 @dataclass(slots=True, frozen=True)
 class ProtData(Data2):
-    """Data pertaining to a chromosomal region
-    Parameters
-    ----------
-    features_to_drop : str or list, default=None
-        Variable(s) to be dropped from the dataframe
-
-
-    Methods
-    -------
-    find_hom_pol_positions:
-        Returns all zero based genomic positions that are in or
-        adjacent to homoploymers of given length
-
-    Properties
-    -------
-    homopolymer_lengths:
-        lengths of homolymers
-    """
+    """Data pertaining to a protein dataset"""
 
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
-    # stats: bool = True
-    # gene: str | None = None
 
     def filter(self, gene: str, tests: list[str], stats: dict[str, bool]) -> "ProtData":
+        """Filter the dataframe based on gene, tests, and stats.
+
+        Args:
+            gene (str): The gene to focus on.
+            tests (List[str]): The tests to include.
+            stats (Dict[str, bool]): Additional statistics to filter on.
+
+        Returns:
+            ProtData: New instance with filtered data.
+        """
         df = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test"])
         return ProtData(
             name=self.name,
+            blurb=self.blurb,
             df=df,
             df_FDR=self.df_FDR[gene],
             gene=gene,
@@ -101,47 +108,53 @@ class ProtData(Data2):
 
     @property
     def point_of_reference(self):
+        """Return a constant point of reference.
+
+        Returns:
+            str: Always "CTRL".
+        """
         return "CTRL"
 
     @property
     def plot_df(self):
+        """Convert Polars DataFrame to Pandas for plotting.
+
+        Returns:
+            pd.DataFrame: DataFrame for plotting.
+        """
         return self.df.to_pandas()
 
     @property
     def test_names(self):
+        """Retrieve sorted unique test names.
+
+        Returns:
+            List[str]: Sorted list of unique test names.
+        """
         return sorted(np.unique(self.df[Schema.CAT]))
 
 
 @dataclass(slots=True, frozen=True)
-class PhosphoProtData(Data2):  # wait for more data before tightening bolts here...
-    # need to figure if want FDR bracket and if filter needs 'tests'
-    """Data pertaining to a chromosomal region
-    Parameters
-    ----------
-    features_to_drop : str or list, default=None
-        Variable(s) to be dropped from the dataframe
-
-
-    Methods
-    -------
-    find_hom_pol_positions:
-        Returns all zero based genomic positions that are in or
-        adjacent to homoploymers of given length
-
-    Properties
-    -------
-    homopolymer_lengths:
-        lengths of homolymers
-    """
+class PhosphoProtData(Data2):  
+    """Data pertaining to a phosphoprotein dataset"""
     ###TODO DataFrame columns are not unique, some columns will be omitted.UserWarning
-    # name: str
     df: pd.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
-    # stats: bool = True
-    # gene: str | None = None
 
-    def filter(self, gene: list[str], tests: list[str], stats: dict[str, bool]):  # , phos_sites: list[str]):
+    def filter(
+        self, gene: list[str], tests: list[str], stats: dict[str, bool]
+    ):  
         # gene is list of phospho sites and gene name from from them
+        """Filter the dataframe based on gene, tests, and stats.
+
+        Args:
+            gene (List[str]): The phospho sites and the gene name.
+            tests (List[str]): The tests to include.
+            stats (Dict[str, bool]): Additional statistics to filter on.
+
+        Returns:
+            PhosphoProtData: New instance with filtered data.
+        """
         phos_sites = gene[:]
         gene = gene.pop().split("_")[0]
         if "ID" not in tests:
@@ -176,6 +189,7 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
 
         return PhosphoProtData(
             name=self.name,
+            blurb=self.blurb,
             df=df_melted,
             df_FDR=self.df_FDR[phos_sites + ["test"]],
             gene=gene,
@@ -184,24 +198,57 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
         )
 
     def get_FDR(self, test, prot_pos=None):
+        """Get FDR value.
+
+        Args:
+            test (str): Test condition.
+            prot_pos (Optional[str]): Protein position.
+
+        Returns:
+            float: FDR value.
+        """
         try:
             return self.df_FDR.query("test == @test")[prot_pos].values[0]
         except KeyError:
             return 0.0
 
     def get_median_CPMs(self, test, prot_pos=None):
+        """Get median CPMs.
+
+        Args:
+            test (str): Test condition.
+            prot_pos (Optional[str]): Protein position.
+
+        Returns:
+            float: Median CPMs.
+        """
         return np.median(self.plot_df.query("gene == @prot_pos").fillna(0.0)[self.gene])
 
     @property
     def point_of_reference(self):
+        """Point of reference.
+
+        Returns:
+            str: "CTRL".
+        """
         return "CTRL"
 
     @property
     def plot_df(self):
+        """Data for plotting.
+
+        Returns:
+            pd.DataFrame: DataFrame for plotting.
+        """
         return self.df
 
     @property
     def test_names(self):
+        """Unique test names.
+
+        Returns:
+            List[str]: Unique test names.
+        """
         return sorted(
             set([test for test in list(self.df["test"]) if test != Schema.UNQIUE_ID])
         )
@@ -209,36 +256,22 @@ class PhosphoProtData(Data2):  # wait for more data before tightening bolts here
 
 @dataclass(slots=True, frozen=True)
 class RNASeqData(Data2):
-    """Data pertaining to a chromosomal region
-    Parameters
-    ----------
-    features_to_drop : str or list, default=None
-        Variable(s) to be dropped from the dataframe
+    """Data pertaining to a RNASeq dataset"""
 
-    Methods
-    -------
-    find_hom_pol_positions:
-        Returns all zero based genomic positions that are in or
-        adjacent to homoploymers of given length
-
-    Properties
-    -------
-    homopolymer_lengths:
-        lengths of homolymers
-    """
-
-    # name: str
     df: pl.DataFrame = field(repr=False)
     df_FDR: pd.DataFrame = field(repr=False)
     processed_dfs: dict[str, pd.DataFrame] = field(repr=False)
-    # stats: bool = True
-    # gene: str | None = None
 
-    def filter(self, gene: str, tests: list[str], stats: dict[str, bool]): #tests: list[str] = None,
+    def filter(
+        self, gene: str, tests: list[str], stats: dict[str, bool]
+    ):  # tests: list[str] = None,
         df: pl.DataFrame = self.df.filter(self.df["test"].is_in(tests))
         df = df.select([gene, "test", "point_of_ref"])
+        if gene not in self.df_FDR.columns:
+            self.df_FDR[gene] = 0.0 #If DEGs pre filtred
         return RNASeqData(
             name=self.name,
+            blurb=self.blurb,
             df=df,
             df_FDR=self.df_FDR[gene],
             processed_dfs=self.processed_dfs,
@@ -298,12 +331,13 @@ def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
         elif csv.suffix.endswith(".tsv") or csv.suffix.endswith(".txt"):
             delimitor = "\t"
         else:
-            raise ValueError("delimitor unknown!")
+            raise ValueError(f"delimitor unknown! {csv}")
         # df = pl.read_csv(csv, separator=delimitor).to_pandas(
         #     use_pyarrow_extension_array=True
         # )
         df = pd.read_csv(csv, sep=delimitor)
-        df.columns = [
+        try: 
+            df.columns = [
             "gene_id",
             "gene_symbol",
             "gene_biotype",
@@ -313,12 +347,17 @@ def load_processed_rna_files(path: Path) -> dict[str, pd.DataFrame]:
             "P",
             csv.stem,
         ]
+        except ValueError:
+            logger.warning(str(csv), "has wrong number of columns")
+            raise ValueError
+
         df = make_index(df)
         return df
 
     DEGs = path / "DEGs"
     for csv in DEGs.glob("*"):
-        data_dict[csv.stem] = read_individual(csv)
+        if not rubbish(csv.name):
+            data_dict[csv.stem] = read_individual(csv)
     if not data_dict:
         raise FileNotFoundError(f"No DEG data found for {self.path}")
     return data_dict
@@ -337,7 +376,7 @@ def read_CPM(path: Path) -> pl.DataFrame:
         df["point_of_ref"] = ["yes" if "_POR_" in name else "no" for name in names]
         return df
     else:
-        print(f"log.warn {path} has no data!!!")
+        logger.warning(f"{path} has no data!!!")
         raise FileNotFoundError()
 
 
@@ -350,20 +389,25 @@ def merge_FDR(fdrs):
 
 def load_RNAseq_data(path: Path) -> RNASeqData:
     CPM = read_CPM(path)
+    
     CPM = CPM.query('test != "description"')
-    CPM = CPM.astype({col: "Float32" for col in CPM.columns[:-2]})
+    cols_to_convert = CPM.select_dtypes(include="number").columns
+    CPM[cols_to_convert] = CPM[cols_to_convert].astype("Float32")
+
+    CPM = pl.from_pandas(CPM)
+
     FDR: dict[str, pd.DataFrame] = load_processed_rna_files(path)
     merged_FDRs = merge_FDR(FDR)
-    CPM = pl.from_pandas(CPM)
 
     return RNASeqData(
         name=path.stem,
+        blurb='',
         df=CPM,
         df_FDR=merged_FDRs,
         processed_dfs=FDR,
         gene="NA",
         ordered_test_names=["NA"],
-        stats={'log': False, 'brackets': True},
+        stats={"log": False, "brackets": True},
     )
 
 
@@ -488,14 +532,15 @@ def load_prot_data(path: Path) -> ProtData:
     preprocessor = compose(*pipe)
     df = preprocessor(df)
     df, df_FDR = split_dfs(df)
-    # df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
+    blurb = path / "blurb.txt"
     return ProtData(
         name=path.stem,
+        blurb=blurb.read_text().split('\n') if blurb.exists() else "",
         df=pl.from_pandas(df),
         df_FDR=df_FDR,
         gene="NA",
         ordered_test_names=["NA"],
-        stats={'log': False, 'brackets': True},
+        stats={"log": False, "brackets": True},
     )
 
 
@@ -534,13 +579,15 @@ def load_phospho_data(path: Path) -> PhosphoProtData:
     df, df_FDR = split_dfs(df)
     # df_FDR.to_csv(f"~/Downloads/{path.stem}_df_FDR.csv")
     # df.to_csv(f"~/Downloads/{path.stem}_df.csv")
+    blurb = path / "blurb.txt"
     return PhosphoProtData(
         name=path.stem,
+        blurb=blurb.read_text().split('\n') if blurb.exists() else "",
         df=df,
         df_FDR=df_FDR,
         gene="NA",
         ordered_test_names=["NA"],
-        stats={'log': True, 'brackets': True},
+        stats={"log": True, "brackets": True},
     )
 
 

@@ -99,7 +99,6 @@ def draw_box_chart(data: Data, params: type, plot_id: str) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     test and overlays the respective FDR value"""
 
-    print(33333, data.plot_df, data, params, sep="\n")
     fig = px.box(
         data.plot_df,
         x=params.X,
@@ -113,7 +112,6 @@ def draw_box_chart(data: Data, params: type, plot_id: str) -> html.Div:
     )  # title=f"Boxplot for CPMs",labels={y_gene: "CPM"},
     if not params.name == "Phosphoproteomics":
         fig.update_xaxes(categoryorder="array", categoryarray=data.ordered_test_names)
-    # if data.stats[0]:
     fig = make_brackets(fig, data)
     # Set layout TODO this code is duplicated in func
     fig.update_layout(
@@ -131,7 +129,6 @@ def draw_box_chart(data: Data, params: type, plot_id: str) -> html.Div:
         ),
     )
 
-    # fig.update_layout()
 
     return html.Div(dcc.Graph(figure=fig), id=plot_id)
 
@@ -171,6 +168,9 @@ def make_brackets(fig: go.Figure, data: Data) -> go.Figure:
                             sub_poses=sub_poses,
                         )
         else:
+            if len(data.df_FDR) + 1 != len(data.ordered_test_names):
+                # issue 13
+                data.stats['brackets'] = False
             add_bracket_per_test(fig, data, point_of_reference, y_range)
 
     return fig
