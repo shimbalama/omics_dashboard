@@ -1,0 +1,67 @@
+Rules for files in dashboard
+
+When adding new data copy folder structure and file naming conventions described here and exemplified by existing data.
+
+Tree
+
+data
+│   ├── function
+│   │   └── test
+│   │       ├── EC50.xlsx
+│   │       ├── Experiment_1_Plate_1.xlsx
+│   │       ├── Experiment_1_Plate_2.xlsx
+│   │       ├── Experiment_3.xlsx
+│   │       ├── Experiment_4.xlsx
+│   │       ├── Experiment_5.xlsx
+│   │       └── first_test.xlsx
+│   ├── phosphoproteomics
+│   │   ├── BENO
+│   │   │   ├── Raw_Phosphoproteomics_BENO_MG_CS_24hrstim.xlsx
+│   │   │   └── blurb.txt
+│   │   └── ET1-His
+│   │       ├── Raw_Phosphoproteomics_ET1-His.xlsx
+│   │       └── blurb.txt
+│   ├── proteomics
+│   │   ├── FibrosisStim
+│   │   │   ├── RawoutputPD_FibrosisStim.xlsx
+│   │   │   └── blurb.txt
+│   │   └── RawoutputPD_FibrosisStim.xlsx
+│   ├── rna_bulk
+│   │   ├── Devilee_unpub_Mavacamten_vs_Nifidipine
+│   │   │   ├── DEGs
+│   │   │   │   ├── Mavacamten.csv
+│   │   │   │   └── Nifedipine.csv
+│   │   │   └── Mavacamten_vs_Nifidipine_CPM_after_filtering.csv
+│   │   ├── MacDonald_brain_Apr2022
+│   │   │   ├── DEGs
+│   │   │   │   ├── BENO_plusCS_vs_BENO_nilCS_filt.tsv
+│   │   │   │   ├── mgBENO_nilCS_vs_BENO_nilCS_filt.tsv
+│   │   │   │   ├── mgBENO_plusCS_vs_BENO_plusCS_filt.tsv
+│   │   │   │   └── mgBENO_plusCS_vs_mgBENO_nilCS_filt.tsv
+│   │   │   ├── MacDonald_RNAseq_brain_organoids_cpm_log2_HGNC_modified.csv
+│   │   │   └── blurb.txt
+
+
+RNAseq:
+
+In each experiment folder there will be a folder called 'DEGs' with 1 or more DEG csvs in it. There will also be a CPM csv and optionally a 'blurb.txt'
+
+CPMs
+Required cols: gene_id (ENSG00000000003) gene_symbol (TSPAN6)
+Ie:
+
+gene_id	gene_symbol	mgBENO_nilCS_1	mgBENO_plusCS_1	mgBENO_nilCS_2
+ENSG00000000003	TSPAN6	6.002312747	5.263861053	5.881966866
+ENSG00000000005	TNMD	-4.794056356	-4.794056356	-1.766249498
+ENSG00000000419	DPM1	3.993747821	4.175127918	4.369480524
+
+The rest of the CPM col names match names of DEG files with regex NAME_* (col) or NAME.*sv. The Point Of Reference (POR) is the the condition that all other conditions are compared to. The POR will not have a DEG file of its's own and the text string POR needs to be added to the relevant CPM file columns at the 2nd position, ie, NAME_POR_* (if you want stats to work).
+
+DEGs
+Required cols: gene_id	gene_symbol	gene_biotype	logFC	logCPM	F	PValue	FDR
+Need exactly this no more no less. Can discuss adding description (could be used in hover)
+
+
+Tips:
+Keep redundant info out of names, ie 'MacDonald_RNAseq_brain_organoids_edgeR_' does not need to be in every DEG file name.
+Beware strs in numeric columns! Any accidental non numeric entries in data files in columns such as CPM will cause it to fall over

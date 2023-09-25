@@ -1,25 +1,10 @@
 import numpy as np
 from dash import dcc, html
 import plotly.express as px
-from src.read_files import Data
-from dataclasses import dataclass
+from src.parse_data.read_files import Data
+from dataclasses import dataclass, field
 import pandas as pd
 import plotly.graph_objects as go
-
-
-@dataclass
-class Params:
-    """Parameters for box plotting"""
-
-    name: str
-    X: str
-    x_axis_title: str | None = None
-    y_axis_title: str | None = None
-    Y: str | None = None
-    COLOUR: str | None = None
-    class_name: str = "control-tab"
-    legend_title: str | None = None
-    #LOG: bool = False
 
 
 @dataclass
@@ -35,6 +20,14 @@ class IDs:  # TODO more needed
     @property
     def gene_drop(self) -> str:
         return f"{self.name}_gene-dropdown"
+    
+    @property
+    def condition_drop(self) -> str:
+        return f"{self.name}_cond-dropdown"
+    
+    @property
+    def metric_drop(self) -> str:
+        return f"{self.name}_metric-dropdown"
 
     @property
     def plot(self) -> str:
@@ -55,7 +48,7 @@ class IDs:  # TODO more needed
     @property
     def stats_out(self) -> str:
         return f"{self.name}_stats-out"
-    
+
     @property
     def log(self) -> str:
         return f"{self.name}_log"
@@ -63,7 +56,7 @@ class IDs:  # TODO more needed
     @property
     def log_out(self) -> str:
         return f"{self.name}_log-out"
-    
+
     @property
     def csv(self) -> str:
         return f"{self.name}_csv"
@@ -73,12 +66,42 @@ class IDs:  # TODO more needed
         return f"{self.name}_csv-out"
 
     @property
+    def blurb(self) -> str:
+        return f"{self.name}_blurb"
+    
+    @property
+    def phospho_drop(self) -> str:
+        return f"{self.name}_phospho-drop"
+    
+    @property
+    def phospho_select_all(self) -> str:
+        return f"{self.name}_phospho-select-all"
+
+    @property
     def slider1(self) -> str:
         return f"{self.name}_slider1"
 
     @property
     def slider2(self) -> str:
         return f"{self.name}_slider2"
+
+
+@dataclass
+class Params:
+    """Parameters for box plotting"""
+
+    name: str
+    ids: IDs = field(init=False)
+    X: str | None = None
+    x_axis_title: str | None = None
+    y_axis_title: str | None = None
+    Y: str | None = None
+    COLOUR: str | None = None
+    class_name: str = "control-tab"
+    legend_title: str | None = None
+
+    def __post_init__(self):
+        self.ids = IDs(name=self.name)
 
 
 def make_list_of_dicts(values: list[str]) -> list[dict[str, str]]:
@@ -95,7 +118,7 @@ def get_y_range(number_of_comparisons: int, interline: float = 0.03) -> np.ndarr
     return y_range
 
 
-def draw_box_chart(data: Data, params: type, plot_id: str) -> html.Div:
+def draw_box_chart(data: Data, params: Params) -> html.Div:
     """Draws a box and wisker of the CPM data for each set of replicates for eact
     test and overlays the respective FDR value"""
 
@@ -107,7 +130,7 @@ def draw_box_chart(data: Data, params: type, plot_id: str) -> html.Div:
         width=666,
         height=666,
         color=params.COLOUR,  # TODO
-        log_y=data.stats['log'],
+        log_y=data.stats["log"],
         facet_row_spacing=0.75,
     )  # title=f"Boxplot for CPMs",labels={y_gene: "CPM"},
     if not params.name == "Phosphoproteomics":
@@ -129,8 +152,7 @@ def draw_box_chart(data: Data, params: type, plot_id: str) -> html.Div:
         ),
     )
 
-
-    return html.Div(dcc.Graph(figure=fig), id=plot_id)
+    return html.Div(dcc.Graph(figure=fig), id=params.ids.plot)
 
 
 def get_sub_poses(number_plots_per_subplot: int, i: int) -> list[float]:
@@ -170,7 +192,7 @@ def make_brackets(fig: go.Figure, data: Data) -> go.Figure:
         else:
             if len(data.df_FDR) + 1 != len(data.ordered_test_names):
                 # issue 13
-                data.stats['brackets'] = False
+                data.stats["brackets"] = False
             add_bracket_per_test(fig, data, point_of_reference, y_range)
 
     return fig
@@ -189,11 +211,11 @@ def add_bracket_per_test(
     for i, test in enumerate(data.ordered_test_names):
         if test == data.point_of_reference:
             assert i == point_of_reference
-            fig = add_annotations_per_test(fig, data, '', test)
+            fig = add_annotations_per_test(fig, data, "", test)
             continue
         FDR = data.get_FDR(test, prot_pos) if prot_pos else data.get_FDR(test)
 
-        if data.stats['brackets']:
+        if data.stats["brackets"]:
             POR = sub_poses[point_of_reference] if sub_poses else point_of_reference
             x = sub_poses[i] if sub_poses else i
             bracket = Bracket(x_POR=POR, x_other=x, y_range=y_range, y_pos=i, FDR=FDR)
@@ -201,7 +223,7 @@ def add_bracket_per_test(
             fig.update_layout(margin=dict(t=i * 15))
 
         if add_annotation:  # need this or cols with all nan excluded
-            if data.stats['brackets']:
+            if data.stats["brackets"]:
                 FDR = f"{FDR:.1e}"
             else:
                 FDR = ""

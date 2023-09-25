@@ -1,15 +1,16 @@
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
-from src.read_files import Data
+from src.parse_data.read_files import Data
 from src.helpers import make_list_of_dicts
 import plotly.express as px
 import numpy as np
 import plotly.graph_objects as go
+from src.helpers import Params
 
 KEY = "function"
 
 
-def render(app: Dash, uninitialised_datasets: Data, ids2, params) -> go.Figure:
+def render(app: Dash, uninitialised_datasets: Data, params: Params) -> go.Figure:
     def draw_line(filtered_data: Data) -> html.Div:
         """Draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
@@ -120,36 +121,36 @@ def render(app: Dash, uninitialised_datasets: Data, ids2, params) -> go.Figure:
 
         return fig
 
-    @app.callback(Output("func_DATA_DROP", "options"), Input("func_drug_drop", "value"))
+    @app.callback(Output(params.ids.data_drop, "options"), Input(params.ids.tests_drop, "value"))
     def select_gene_value(drug: str) -> str:
         """Select possible datasets after changing drug"""
         return make_list_of_dicts(dataset.possible_dataset_names(drug))
 
     @app.callback(
-        Output("func_condition_DROP", "options"), Input("func_drug_drop", "value")
+        Output(params.ids.condition_drop, "options"), Input(params.ids.tests_drop, "value")
     )
     def select_gene_value(drug: str) -> str:
         """Select possible conditions after changing drug"""
         return make_list_of_dicts(dataset.possible_condition_names(drug))
 
-    @app.callback(Output("func_DATA_DROP", "value"), Input("func_DATA_DROP", "options"))
+    @app.callback(Output(params.ids.data_drop, "value"), Input(params.ids.data_drop, "options"))
     def select_gene_value(options: list[dict[str, str]]) -> str:
         """Select first gene as default value"""
         return [option["value"] for option in options]
 
     @app.callback(
-        Output("func_condition_DROP", "value"), Input("func_condition_DROP", "options")
+        Output(params.ids.condition_drop, "value"), Input(params.ids.condition_drop, "options")
     )
     def select_gene_value(options: list[dict[str, str]]) -> str:
         """Select first gene as default value"""
         return [option["value"] for option in options]
 
     @app.callback(
-        Output("func_plot", "figure"),
-        Input("func_drug_drop", "value"),
-        Input("func_metric_drop", "value"),
-        Input("func_DATA_DROP", "value"),
-        Input("func_condition_DROP", "value"),
+        Output(params.ids.plot, "figure"),
+        Input(params.ids.tests_drop, "value"),
+        Input(params.ids.metric_drop, "value"),
+        Input(params.ids.data_drop, "value"),
+        Input(params.ids.condition_drop, "value"),
     )
     def update_graph(
         test: str, metric: str, datasets: list[str], conditions: list[str]
@@ -176,35 +177,35 @@ def render(app: Dash, uninitialised_datasets: Data, ids2, params) -> go.Figure:
             html.P("blah bla"),
             html.H6("Dataset"),
             dcc.Dropdown(
-                id="func_DATA_DROP",
+                id=params.ids.data_drop,
                 options=default_datasets,
                 value=default_datasets,
                 multi=True,
             ),
             html.H6("Condition"),
             dcc.Dropdown(
-                id="func_condition_DROP",
+                id=params.ids.condition_drop,
                 options=default_conditions,
                 value=default_conditions,
                 multi=True,
             ),
             html.H6("Drug"),
             dcc.Dropdown(
-                id="func_drug_drop",
+                id=params.ids.tests_drop,
                 options=list(dataset.test_names),
                 multi=False,
                 value=default_drug,
             ),
             html.H6("metric"),
             dcc.Dropdown(
-                id="func_metric_drop",
+                id=params.ids.metric_drop,
                 options=dataset.metrics,
                 multi=False,
                 value=dataset.metrics[0],
             ),
             html.Div(
                 dcc.Graph(
-                    id="func_plot",
+                    id=params.ids.plot,
                     figure=draw_line(filtered_dataset),
                 ),
             ),

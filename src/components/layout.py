@@ -4,8 +4,9 @@ from dash import Dash, html, dcc
 # from dash.dependencies import Input, Output, State
 
 from ..tabs import box_tabs, rna_processed_tab, text_tab1, text_tab2, function_tab
-from src.read_files import Data
+from src.parse_data.read_files import Data
 from src.helpers import IDs, Params
+from typing import Callable
 
 
 def tab_layout(name: str, subtabs_id: str, *args) -> dcc.Tab:
@@ -21,11 +22,10 @@ def sub_tab_layout(
     app: Dash,
     data: dict[str, Data],
     params: Params,
-    rendering,
+    render: Callable[[Dash, dict[str, Data], Params], html.Div],
 ) -> dcc.Tab:
     """Defines base unit of UI"""
-    ids = IDs(params.name)
-  
+
     return dcc.Tab(
         label=params.name,
         value=params.name,
@@ -39,7 +39,7 @@ def sub_tab_layout(
                         html.Hr(),
                         html.Div(
                             className=params.class_name,
-                            children=[rendering.render(app, data, ids, params)],
+                            children=[render(app, data, params)],
                         ),
                     ],
                 )
@@ -81,14 +81,14 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                     sub_tab_layout(
                                         app,
                                         data,
-                                        Params(name="Introduction", X="test"),
-                                        text_tab1,
+                                        Params(name="Introduction"),
+                                        text_tab1.render,
                                     ),
                                     sub_tab_layout(
                                         app,
                                         data,
-                                        Params(name="Input_files", X="test"),
-                                        text_tab2,
+                                        Params(name="Input_files"),
+                                        text_tab2.render,
                                     ),
                                 ),
                                 tab_layout(
@@ -103,19 +103,13 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                             y_axis_title="CPM",
                                             x_axis_title="Condition",
                                         ),
-                                        box_tabs,
+                                        box_tabs.render,
                                     ),
                                     sub_tab_layout(
                                         app,
                                         data["rna_bulk"],
                                         Params(name="Volcano", X="test"),
-                                        rna_processed_tab,
-                                    ),
-                                    sub_tab_layout(
-                                        app,
-                                        data,
-                                        Params(name="scRNA", X="test"),
-                                        text_tab1,
+                                        rna_processed_tab.render,
                                     ),
                                 ),
                                 tab_layout(
@@ -130,7 +124,7 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                             y_axis_title="Protein abundance",
                                             x_axis_title="Condition",
                                         ),
-                                        box_tabs,
+                                        box_tabs.render,
                                     ),
                                     sub_tab_layout(
                                         app,
@@ -144,7 +138,7 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                             y_axis_title="Phosphopeptide abundance",
                                             legend_title="Condition",
                                         ),
-                                        box_tabs,
+                                        box_tabs.render,
                                     ),
                                 ),
                                 tab_layout(
@@ -154,7 +148,7 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                                         app,
                                         data["function"]["test"],
                                         Params(name="Function", X="test"),
-                                        function_tab,
+                                        function_tab.render,
                                     ),
                                 ),
                             ],

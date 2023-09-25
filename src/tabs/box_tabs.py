@@ -1,22 +1,23 @@
 # from dash import Dash, dcc, html
-from src.read_files import Data
+from src.parse_data.read_files import Data
 from typing import Any
-from src.helpers import draw_box_chart, Params, IDs, make_list_of_dicts
+from src.helpers import draw_box_chart, Params, make_list_of_dicts
 import dash_bootstrap_components as dbc
 from dash import Dash, dcc, html, Input, Output, callback, callback_context
 import dash_daq as daq
 from multiprocessing import Pool
-from functools import partial
+from icecream import ic
 
 
-def download(app, ids: IDs, datasets: dict[str, Data]):
+def download(app: Dash, datasets: dict[str, Data], params: Params) -> Any:
+    '''Download the data as a csv file'''
     @callback(
-        Output(ids.csv_out, "data"),
-        Input(ids.csv, "n_clicks"),
-        Input(ids.data_drop, "value"),
-        Input(ids.gene_drop, "value"),
-        Input(ids.tests_drop, "value"),
-        Input("phos_site_drop", "value"),
+        Output(params.ids.csv_out, "data"),
+        Input(params.ids.csv, "n_clicks"),
+        Input(params.ids.data_drop, "value"),
+        Input(params.ids.gene_drop, "value"),
+        Input(params.ids.tests_drop, "value"),
+        Input(params.ids.phospho_drop, "value"),
         prevent_initial_call=True,
     )
     def func(n_clicks, dataset: str, gene: str, tests: list[str], phos):
@@ -29,46 +30,51 @@ def download(app, ids: IDs, datasets: dict[str, Data]):
             return dcc.send_data_frame(filtered.plot_df.to_csv, "mydf.csv")
 
 
-def tog_stat(app, ids: IDs):
+def tog_stat(app, params: Params) -> Any:
+    '''Toggle the stats on and off'''
     @callback(
-        Output(ids.stats_out, "value"),
-        Input(ids.stats, "value"),
+        Output(params.ids.stats_out, "value"),
+        Input(params.ids.stats, "value"),
     )
     def update_output(value):
         return value
 
 
-def tog_log(app, ids: IDs):
+def tog_log(app, params: Params) -> Any:
+    '''Toggle the log on and off'''
     @callback(
-        Output(ids.log_out, "value"),
-        Input(ids.log, "value"),
+        Output(params.ids.log_out, "value"),
+        Input(params.ids.log, "value"),
     )
     def update_output(value):
         return value
 
 
-def gene_dropdown(app, ids: IDs, datasets: dict[str, Data]):
-    @app.callback(Output(ids.gene_drop, "options"), Input(ids.data_drop, "value"))
+def gene_dropdown(app, datasets: dict[str, Data], params: Params) -> list[dict[str, str]]:
+    '''Populate the gene dropdown with options from the given dataset'''
+    @app.callback(Output(params.ids.gene_drop, "options"), Input(params.ids.data_drop, "value"))
     def set_gene_options(dataset: str) -> list[dict[str, str]]:
         """Populates the gene selection dropdown with options from teh given dataset"""
         return make_list_of_dicts(list(datasets[dataset].df.columns))
 
 
-def gene_dropdown_default(app, ids: IDs):
-    @app.callback(Output(ids.gene_drop, "value"), Input(ids.gene_drop, "options"))
+def gene_dropdown_default(app, params: Params) -> str:
+    '''Select first gene as default value'''
+    @app.callback(Output(params.ids.gene_drop, "value"), Input(params.ids.gene_drop, "options"))
     def select_gene_value(gene_options: list[dict[str, str]]) -> str:
         """Select first gene as default value"""
         return gene_options[0]["value"]
 
 
-def box(app, ids: IDs, datasets: dict[str, Data], params: type):
+def box(app, datasets: dict[str, Data], params: Params) -> html.Div:
+    '''Draw a box and wisker of the CPM data for each set of replicates for each'''
     @app.callback(
-        Output(ids.plot, "children"),
-        Input(ids.data_drop, "value"),
-        Input(ids.gene_drop, "value"),
-        Input(ids.tests_drop, "value"),
-        Input(ids.stats_out, "value"),
-        Input(ids.log_out, "value"),
+        Output(params.ids.plot, "children"),
+        Input(params.ids.data_drop, "value"),
+        Input(params.ids.gene_drop, "value"),
+        Input(params.ids.tests_drop, "value"),
+        Input(params.ids.stats_out, "value"),
+        Input(params.ids.log_out, "value"),
     )
     def update_box_chart(
         dataset: str, gene: str, tests: list[str], stats: bool, log: bool
@@ -78,24 +84,26 @@ def box(app, ids: IDs, datasets: dict[str, Data], params: type):
         selected_data = datasets[dataset]
         stats_d = {"brackets": stats, "log": log}
         filtered: Data = selected_data.filter(gene, tests, stats_d)
-        return draw_box_chart(filtered, params, ids.plot)
+        return draw_box_chart(filtered, params)
 
 
-def test_dropdown(app, ids: IDs, datasets: dict[str, Data]):
+def test_dropdown(app, datasets: dict[str, Data], params: Params) -> list[dict[str, str]]:
+    '''Populate the test selection dropdown with options from teh given dataset'''
     @app.callback(
-        Output(ids.tests_drop, "options"),
-        Input(ids.data_drop, "value"),
+        Output(params.ids.tests_drop, "options"),
+        Input(params.ids.data_drop, "value"),
     )
     def set_comparison_options(dataset: str) -> list[dict[str, str]]:
         """Populates the test selection dropdown with options from teh given dataset"""
         return make_list_of_dicts(list(datasets[dataset].test_names))
 
 
-def test_dropdown_select_all(app, ids: IDs):
+def test_dropdown_select_all(app, params: Params) -> list[dict[str, str]]:
+    '''Default to all available comparisons'''
     @app.callback(
-        Output(ids.tests_drop, "value"),
-        Input(ids.tests_drop, "options"),
-        Input(ids.select_all, "n_clicks"),
+        Output(params.ids.tests_drop, "value"),
+        Input(params.ids.tests_drop, "options"),
+        Input(params.ids.select_all, "n_clicks"),
     )
     def select_comparison_values(
         available_comparisons: list[dict[str, str]], _: int
@@ -104,12 +112,13 @@ def test_dropdown_select_all(app, ids: IDs):
         return [comp["value"] for comp in available_comparisons]
 
 
-def phospho_site_dropdown(app, ids: IDs, datasets: dict[str, Data]):
+def phospho_site_dropdown(app, datasets: dict[str, Data], params: Params) -> list[dict[str, str]]:
+    '''Populate the phospho site dropdown with options from teh given dataset'''''
     @app.callback(
-        Output("phos_site_drop", "options"),
-        Input(ids.data_drop, "value"),
-        Input(ids.gene_drop, "value"),
-        Input(ids.tests_drop, "value"),
+        Output(params.ids.phospho_drop, "options"),
+        Input(params.ids.data_drop, "value"),
+        Input(params.ids.gene_drop, "value"),
+        Input(params.ids.tests_drop, "value"),
     )
     def set_comparison_options(
         dataset: str, gene: str, tests: list[str]
@@ -126,11 +135,12 @@ def phospho_site_dropdown(app, ids: IDs, datasets: dict[str, Data]):
         )
 
 
-def phospho_site_dropdown_select_all(app, ids: IDs):
+def phospho_site_dropdown_select_all(app, params: Params) -> list[dict[str, str]]:
+    '''Select all phospho sites'''
     @app.callback(
-        Output("phos_site_drop", "value"),
-        Input("phos_site_drop", "options"),
-        Input("phos_site_drop_select_all", "n_clicks"),
+        Output(params.ids.phospho_drop, "value"),
+        Input(params.ids.phospho_drop, "options"),
+        Input(params.ids.phospho_select_all, "n_clicks"),
     )
     def select_comparison_values(
         available_comparisons: list[dict[str, str]], _: int
@@ -139,15 +149,16 @@ def phospho_site_dropdown_select_all(app, ids: IDs):
         return [comp["value"] for comp in available_comparisons]
 
 
-def phospho_site_box(app, ids: IDs, datasets: dict[str, Data], params: type):
+def phospho_site_box(app, datasets: dict[str, Data], params: Params) -> html.Div:
+    '''Draw multiple box and wisker of the CPM data for each set of replicates for each'''
     @app.callback(
-        Output(ids.plot, "children"),
-        Input(ids.data_drop, "value"),
-        Input(ids.gene_drop, "value"),
-        Input(ids.tests_drop, "value"),
-        Input("phos_site_drop", "value"),
-        Input(ids.stats_out, "value"),
-        Input(ids.log_out, "value"),
+        Output(params.ids.plot, "children"),
+        Input(params.ids.data_drop, "value"),
+        Input(params.ids.gene_drop, "value"),
+        Input(params.ids.tests_drop, "value"),
+        Input(params.ids.phospho_drop, "value"),
+        Input(params.ids.stats_out, "value"),
+        Input(params.ids.log_out, "value"),
     )
     def update_box_chart(
         dataset: str,
@@ -162,11 +173,11 @@ def phospho_site_box(app, ids: IDs, datasets: dict[str, Data], params: type):
         stats_d = {"brackets": stats, "log": log}
         selected_data = datasets[dataset]
         filtered: Data = selected_data.filter(phos_sites, tests, stats_d)
-
-        return draw_box_chart(filtered, params, ids.plot)
+        return draw_box_chart(filtered, params)
 
 
 def get_defaults(datasets: dict[str, Data], params) -> tuple[str, Data, list[str]]:
+    '''Get the default dataset, gene and test'''
     dataset_names = list(datasets.keys())
     first_dataset = datasets[dataset_names[0]]
     if params.name == "Phosphoproteomics":
@@ -185,7 +196,20 @@ def get_defaults(datasets: dict[str, Data], params) -> tuple[str, Data, list[str
     return dataset, dataset_names
 
 
-def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
+def blurby(app, initialised_datasets, params: Params) -> Any:
+    '''Write the blurb'''
+    @app.callback(Output(params.ids.blurb, "children"), Input(params.ids.data_drop, "value"))
+    def write_blurb(dataset: str) -> html.Div:
+        ic(dataset)
+        selected_data = initialised_datasets[dataset]
+        children = []
+        for line in selected_data.blurb:
+            children += [html.P("\t" + line)]
+        return html.Div(children=children, id=params.ids.blurb)
+
+
+def dropdowns(datasets: dict[str, Data], params: Params) -> list[Any]:
+    '''Create the dropdowns'''
     dataset, dataset_names = get_defaults(datasets, params)
 
     children = [
@@ -199,7 +223,7 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
             [
                 dbc.Col(
                     dcc.Dropdown(
-                        id=ids.data_drop,
+                        id=params.ids.data_drop,
                         options=dataset_names,
                         value=dataset_names[0],
                         multi=False,
@@ -208,7 +232,7 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
                 ),
                 dbc.Col(
                     dcc.Dropdown(
-                        id=ids.gene_drop,
+                        id=params.ids.gene_drop,
                     ),
                     width=3,
                 ),
@@ -223,7 +247,7 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
             [
                 dbc.Col(
                     dcc.Dropdown(
-                        id=ids.tests_drop,
+                        id=params.ids.tests_drop,
                         multi=True,
                     ),
                     width=7,
@@ -236,23 +260,23 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
                     html.Button(
                         className="dropdown-button",
                         children=["Select All"],
-                        id=ids.select_all,
+                        id=params.ids.select_all,
                         n_clicks=0,
                     ),
                     width=3,
                 ),
                 dbc.Col(
-                    daq.ToggleSwitch(id=ids.stats_out, value=True, label="Stats"),
+                    daq.ToggleSwitch(id=params.ids.stats_out, value=True, label="Stats"),
                     width=1,
                 ),
                 dbc.Col(
-                    daq.ToggleSwitch(id=ids.log_out, value=True, label="Log10"),
+                    daq.ToggleSwitch(id=params.ids.log_out, value=True, label="Log10"),
                     width=1,
                 ),
                 dbc.Col(
                     [
-                        html.Button("Download CSV", id=ids.csv, n_clicks=0),
-                        dcc.Download(id=ids.csv_out),
+                        html.Button("Download CSV", id=params.ids.csv, n_clicks=0),
+                        dcc.Download(id=params.ids.csv_out),
                     ],
                     width=2,
                 ),
@@ -270,7 +294,7 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
                 [
                     dbc.Col(
                         dcc.Dropdown(
-                            id="phos_site_drop",
+                            id=params.ids.phospho_drop,
                             multi=True,
                             persistence=True,
                             persistence_type="session",
@@ -285,46 +309,49 @@ def dropdowns(datasets: dict[str, Data], params: Params, ids: IDs) -> list[Any]:
                         html.Button(
                             className="dropdown-button",
                             children=["Select All"],
-                            id="phos_site_drop_select_all",
+                            id=params.ids.phospho_select_all,
                             n_clicks=0,
                         ),
                         width=5,
                     )
                 ]
             ),
-            html.Div(draw_box_chart(dataset, params, ids.plot)),
+            html.Div(draw_box_chart(dataset, params)),
         ]
     else:
-        children += [html.Div(draw_box_chart(dataset, params, ids.plot))]
-    for line in dataset.blurb:
-        children += [html.P('\t'+line)]
+        children += [html.Div(draw_box_chart(dataset, params))]
+    children += [html.Div(dataset.blurb, id=params.ids.blurb)]
     return children
 
 
-def render(app: Dash, datasets: dict[str, Data], ids: IDs, params: Params) -> html.Div:
+def render(app: Dash, datasets: dict[str, Data], params: Params) -> html.Div:
+    '''Render the tab'''
     initialised_datasets = {}
 
     with Pool(processes=3) as pool:
         for k, result in pool.imap_unordered(call_funk, datasets.items()):
             initialised_datasets[k] = result
 
-    gene_dropdown(app, ids, initialised_datasets)
-    gene_dropdown_default(app, ids)
-    test_dropdown(app, ids, initialised_datasets)
-    test_dropdown_select_all(app, ids)
-    tog_stat(app, ids)
-    tog_log(app, ids)
-    download(app, ids, initialised_datasets)
+    gene_dropdown(app, initialised_datasets, params)
+    gene_dropdown_default(app, params)
+    test_dropdown(app, initialised_datasets, params)
+    test_dropdown_select_all(app, params)
+    tog_stat(app, params)
+    tog_log(app, params)
+    download(app, initialised_datasets, params)
     if params.name == "Phosphoproteomics":
-        phospho_site_dropdown(app, ids, initialised_datasets)
-        phospho_site_dropdown_select_all(app, ids)
-        phospho_site_box(app, ids, initialised_datasets, params)
+        phospho_site_dropdown(app, initialised_datasets, params)
+        phospho_site_dropdown_select_all(app, params)
+        phospho_site_box(app, initialised_datasets, params)
     else:
-        box(app, ids, initialised_datasets, params)
-    return html.Div(children=dropdowns(initialised_datasets, params, ids))
+        box(app, initialised_datasets, params)
+    blurby(app, initialised_datasets, params)
+
+    return html.Div(children=dropdowns(initialised_datasets, params))
 
 
-def call_funk(tup):
+def call_funk(tup) -> tuple[str, Data]:
+    '''Call the function and return the result'''
     k, v = tup
     func, path = v
     return k, func(path)

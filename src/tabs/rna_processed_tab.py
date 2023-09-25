@@ -1,19 +1,19 @@
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
-from ..components import ids
 import dash_bio
-from src.read_files import Data
+from src.parse_data.read_files import Data
 import pandas as pd
 from src.helpers import make_list_of_dicts
+from icecream import ic
+from src.helpers import Params
 
 KEY = "rna_bulk"
 
 
 def render(
-    app: Dash, uninitialised_datasets: dict[str, Data], ids2, params
+    app: Dash, uninitialised_datasets: dict[str, Data], params: Params
 ) -> html.Div:
-    # get comparisons
-
+    """Render the layout for the RNA processed tab."""
     def draw_volcano(df, genomic_line, effect_lims):
         return dash_bio.VolcanoPlot(
             dataframe=df,
@@ -26,27 +26,27 @@ def render(
         )
 
     @app.callback(
-        Output(ids.PROCESSED_COMPARISON_DROPDOWN, "options"),
-        Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
+        Output(params.ids.tests_drop, "options"),
+        Input(params.ids.data_drop, "value"),
     )
     def set_comparison_options(experiment: str) -> list[dict[str, str]]:
         """Set the test option by given experiemnt name"""
         return make_list_of_dicts(list(datasets[experiment].degs))
 
     @app.callback(
-        Output(ids.PROCESSED_COMPARISON_DROPDOWN, "value"),
-        Input(ids.PROCESSED_COMPARISON_DROPDOWN, "options"),
+        Output(params.ids.tests_drop, "value"),
+        Input(params.ids.tests_drop, "options"),
     )
     def select_gene_value(options: list[dict[str, str]]) -> str:
         """Select first test as default value after changing dataset"""
         return options[0]["value"]
 
     @app.callback(
-        Output(ids.VOLCANO, "figure"),
-        Input(ids.PROCESSED_COMPARISON_DROPDOWN, "value"),
-        Input(ids.EEFECT_SIZE, "value"),
-        Input(ids.PVALUE, "value"),
-        Input(ids.PROCESSED_RNA_DATA_DROP, "value"),
+        Output(params.ids.plot, "figure"),
+        Input(params.ids.tests_drop, "value"),
+        Input(params.ids.slider1, "value"),
+        Input(params.ids.slider2, "value"),
+        Input(params.ids.data_drop, "value"),
     )
     def update_graph(
         comp: str,
@@ -64,7 +64,9 @@ def render(
     datasets = {}
     for k, v in uninitialised_datasets.items():
         func, path = v
-        datasets[k] = func(path)
+        dataset = func(path)
+        if not dataset.df_FDR.empty:
+            datasets[k] = func(path)
     dataset_names = list(datasets.keys())
     first_dataset = datasets[dataset_names[0]]
     default_comparison = list(first_dataset.processed_dfs.keys())[0]
@@ -85,20 +87,20 @@ def render(
             ),
             html.H6("Dataset"),
             dcc.Dropdown(
-                id=ids.PROCESSED_RNA_DATA_DROP,
+                id=params.ids.data_drop,
                 options=dataset_names,
                 value=dataset_names[0],
                 multi=False,
             ),
             html.H6("test"),
             dcc.Dropdown(
-                id=ids.PROCESSED_COMPARISON_DROPDOWN,
+                id=params.ids.tests_drop,
                 multi=False,
                 value=default_comparison,
             ),
             html.H6("P-val"),
             dcc.Slider(
-                id=ids.PVALUE,
+                id=params.ids.slider2,
                 value=4,
                 max=10,
                 min=0,
@@ -108,7 +110,7 @@ def render(
             ),
             html.H6("Effect-size"),
             dcc.RangeSlider(
-                id=ids.EEFECT_SIZE,
+                id=params.ids.slider1,
                 min=-4,
                 max=4,
                 value=[-1, 1],
@@ -118,7 +120,7 @@ def render(
             ),
             html.Div(
                 dcc.Graph(
-                    id=ids.VOLCANO,
+                    id=params.ids.plot,
                     figure=draw_volcano(default_df, 1, [-3, 3]),
                 )
             ),
