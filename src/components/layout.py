@@ -4,7 +4,7 @@ from dash import Dash, html, dcc
 # from dash.dependencies import Input, Output, State
 
 from ..tabs import box_tabs, rna_processed_tab, text_tab1, text_tab2, function_tab
-from src.parse_data.read_files import Data
+from src.parse.read_files import Data
 from src.helpers import IDs, Params
 from typing import Callable
 

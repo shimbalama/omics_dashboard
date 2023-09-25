@@ -1,5 +1,5 @@
 # from dash import Dash, dcc, html
-from src.parse_data.read_files import Data
+from src.parse.read_files import Data
 from typing import Any
 from src.helpers import draw_box_chart, Params, make_list_of_dicts
 import dash_bootstrap_components as dbc

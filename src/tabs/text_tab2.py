@@ -1,6 +1,6 @@
 from dash import Dash, html
 from pathlib import Path
-from src.parse_data.read_files import Data
+from src.parse.read_files import Data
 from src.helpers import Params
 
 

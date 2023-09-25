@@ -1,6 +1,6 @@
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
-from src.parse_data.read_files import Data
+from src.parse.read_files import Data
 from src.helpers import make_list_of_dicts
 import plotly.express as px
 import numpy as np

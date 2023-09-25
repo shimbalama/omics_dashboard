@@ -1,7 +1,7 @@
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import dash_bio
-from src.parse_data.read_files import Data
+from src.parse.read_files import Data
 import pandas as pd
 from src.helpers import make_list_of_dicts
 from icecream import ic

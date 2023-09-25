@@ -2,7 +2,7 @@ from dash import Dash
 
 # from multiprocessing import Pool
 from dash_bootstrap_components.themes import BOOTSTRAP
-from src.parse_data.read_files import (
+from src.parse.read_files import (
     load_RNAseq_data,
     load_phospho_data,
     load_prot_data,

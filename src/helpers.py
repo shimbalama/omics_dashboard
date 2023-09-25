@@ -1,7 +1,7 @@
 import numpy as np
 from dash import dcc, html
 import plotly.express as px
-from src.parse_data.read_files import Data
+from src.parse.read_files import Data
 from dataclasses import dataclass, field
 import pandas as pd
 import plotly.graph_objects as go
