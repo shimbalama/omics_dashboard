@@ -16,6 +16,7 @@ from loguru import logger
 
 import dash_auth
 
+
 # Keep this out of source code repository - save in a file or a database
 passwords = Path("auth/passwords.json")
 with open("auth/passwords.json", "r") as f:
@@ -49,6 +50,7 @@ def main() -> None:
     app = Dash(external_stylesheets=[BOOTSTRAP])
     auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
     app.title = "Omics dashboard"
+    app._favicon = "DALgg.ico"
     app.layout = create_layout(app, data)
     app.run_server(debug=False, host="0.0.0.0", port=8080)
 

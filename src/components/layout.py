@@ -1,13 +1,10 @@
 from dash import Dash, html, dcc
-
-# import dash_loading_spinners
-# from dash.dependencies import Input, Output, State
-
 from ..tabs import box_tabs, rna_processed_tab, text_tab1, text_tab2, function_tab
 from src.parse.read_files import Data
-from src.helpers import IDs, Params
+from src.helpers import Params
 from typing import Callable
 
+__version__ = '1.0.0'
 
 def tab_layout(name: str, subtabs_id: str, *args) -> dcc.Tab:
     """Defines tab/subtab structure"""
@@ -46,9 +43,6 @@ def sub_tab_layout(
             ],
         ),
     )
-
-
-# def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
 
 
 def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
@@ -155,21 +149,7 @@ def create_layout(app: Dash, data: dict[str, dict[str, Data]]) -> html.Div:
                         )
                     ],
                 ),
-            )
+            ),
+            html.Div(f"Version: {__version__}"),
         ],
     )
-
-
-# @app.callback(
-#     Output("div-loading", "children"),
-#     [Input("div-app", "loading_state")],
-#     [
-#         State("div-loading", "children"),
-#     ],
-# )
-# def hide_loading_after_startup(loading_state, children):
-#     if children:
-#         print("remove loading spinner!")
-#         return None
-#     print("spinner already gone!")
-#     raise PreventUpdate
