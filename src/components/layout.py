@@ -4,7 +4,7 @@ from src.parse.read_files import Data
 from src.helpers import Params
 from typing import Callable
 
-__version__ = '1.0.0'
+__version__ = '1.0.01'
 
 def tab_layout(name: str, subtabs_id: str, *args) -> dcc.Tab:
     """Defines tab/subtab structure"""

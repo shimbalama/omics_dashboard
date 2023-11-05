@@ -9,27 +9,6 @@ from multiprocessing import Pool
 from icecream import ic
 
 
-def download(app: Dash, datasets: dict[str, Data], params: Params) -> Any:
-    '''Download the data as a csv file'''
-    @callback(
-        Output(params.ids.csv_out, "data"),
-        Input(params.ids.csv, "n_clicks"),
-        Input(params.ids.data_drop, "value"),
-        Input(params.ids.gene_drop, "value"),
-        Input(params.ids.tests_drop, "value"),
-        Input(params.ids.phospho_drop, "value"),
-        prevent_initial_call=True,
-    )
-    def func(n_clicks, dataset: str, gene: str, tests: list[str], phos):
-        if "csv" in callback_context.triggered_id:
-            selected_data = datasets[dataset]
-            if callback_context.triggered_id == "Phosphoproteomics_csv":
-                filtered: Data = selected_data.filter(phos, tests, {})
-            else:
-                filtered: Data = selected_data.filter(gene, tests, {})
-            return dcc.send_data_frame(filtered.plot_df.to_csv, "mydf.csv")
-
-
 def tog_stat(app, params: Params) -> Any:
     '''Toggle the stats on and off'''
     @callback(
@@ -65,27 +44,26 @@ def gene_dropdown_default(app, params: Params) -> str:
         """Select first gene as default value"""
         return gene_options[0]["value"]
 
-
-def box(app, datasets: dict[str, Data], params: Params) -> html.Div:
+def box(app, datasets: dict[str, Data], params: Params, datapoint_type: str) -> html.Div:
     '''Draw a box and wisker of the CPM data for each set of replicates for each'''
     @app.callback(
         Output(params.ids.plot, "children"),
         Input(params.ids.data_drop, "value"),
-        Input(params.ids.gene_drop, "value"),
+        Input(datapoint_type, "value"),
         Input(params.ids.tests_drop, "value"),
         Input(params.ids.stats_out, "value"),
         Input(params.ids.log_out, "value"),
     )
     def update_box_chart(
-        dataset: str, gene: str, tests: list[str], stats: bool, log: bool
+        dataset: str, datapoint: str | list [str], tests: list[str], stats: bool, log: bool
     ) -> html.Div:
         """Re draws a box and wisker of the CPM data for each set of replicates for eact
         test and overlays the respective FDR value"""
         selected_data = datasets[dataset]
         stats_d = {"brackets": stats, "log": log}
-        filtered: Data = selected_data.filter(gene, tests, stats_d)
+        filtered: Data = selected_data.filter(datapoint, tests, stats_d)
         return draw_box_chart(filtered, params)
-
+    
 
 def test_dropdown(app, datasets: dict[str, Data], params: Params) -> list[dict[str, str]]:
     '''Populate the test selection dropdown with options from teh given dataset'''
@@ -110,6 +88,24 @@ def test_dropdown_select_all(app, params: Params) -> list[dict[str, str]]:
     ) -> list[dict[str, str]]:
         """Default to all available comparisons"""
         return [comp["value"] for comp in available_comparisons]
+
+def download(app: Dash, datasets: dict[str, Data], params: Params, datapoint_type: str) -> Any:
+    '''Download the data as a csv file'''
+    @callback(
+        Output(params.ids.csv_out, "data"),
+        Input(params.ids.csv, "n_clicks"),
+        Input(params.ids.data_drop, "value"),
+        Input(params.ids.tests_drop, "value"),
+        Input(datapoint_type, "value"),
+        prevent_initial_call=True,
+    )
+    def func(n_clicks, dataset: str, tests: list[str], datapoint: str):
+        """Download the data as a csv file"""
+        if "csv" in callback_context.triggered_id:
+            selected_data = datasets[dataset]
+            filtered: Data = selected_data.filter(datapoint, tests, {})
+            return dcc.send_data_frame(filtered.plot_df.to_csv, "mydf.csv")
+        
 
 
 def phospho_site_dropdown(app, datasets: dict[str, Data], params: Params) -> list[dict[str, str]]:
@@ -149,32 +145,6 @@ def phospho_site_dropdown_select_all(app, params: Params) -> list[dict[str, str]
         return [comp["value"] for comp in available_comparisons]
 
 
-def phospho_site_box(app, datasets: dict[str, Data], params: Params) -> html.Div:
-    '''Draw multiple box and wisker of the CPM data for each set of replicates for each'''
-    @app.callback(
-        Output(params.ids.plot, "children"),
-        Input(params.ids.data_drop, "value"),
-        Input(params.ids.gene_drop, "value"),
-        Input(params.ids.tests_drop, "value"),
-        Input(params.ids.phospho_drop, "value"),
-        Input(params.ids.stats_out, "value"),
-        Input(params.ids.log_out, "value"),
-    )
-    def update_box_chart(
-        dataset: str,
-        gene: str,
-        tests: list[str],
-        phos_sites: list[str],
-        stats: bool,
-        log: bool,
-    ) -> html.Div:
-        """Re draws a box and wisker of the CPM data for each set of replicates for eact
-        test and overlays the respective FDR value"""
-        stats_d = {"brackets": stats, "log": log}
-        selected_data = datasets[dataset]
-        filtered: Data = selected_data.filter(phos_sites, tests, stats_d)
-        return draw_box_chart(filtered, params)
-
 
 def get_defaults(datasets: dict[str, Data], params) -> tuple[str, Data, list[str]]:
     '''Get the default dataset, gene and test'''
@@ -200,7 +170,6 @@ def blurby(app, initialised_datasets, params: Params) -> Any:
     '''Write the blurb'''
     @app.callback(Output(params.ids.blurb, "children"), Input(params.ids.data_drop, "value"))
     def write_blurb(dataset: str) -> html.Div:
-        ic(dataset)
         selected_data = initialised_datasets[dataset]
         children = []
         for line in selected_data.blurb:
@@ -338,13 +307,14 @@ def render(app: Dash, datasets: dict[str, Data], params: Params) -> html.Div:
     test_dropdown_select_all(app, params)
     tog_stat(app, params)
     tog_log(app, params)
-    download(app, initialised_datasets, params)
     if params.name == "Phosphoproteomics":
+        download(app, initialised_datasets, params, params.ids.phospho_drop)
         phospho_site_dropdown(app, initialised_datasets, params)
         phospho_site_dropdown_select_all(app, params)
-        phospho_site_box(app, initialised_datasets, params)
+        box(app, initialised_datasets, params, params.ids.phospho_drop)
     else:
-        box(app, initialised_datasets, params)
+        download(app, initialised_datasets, params, params.ids.gene_drop)
+        box(app, initialised_datasets, params, params.ids.gene_drop)
     blurby(app, initialised_datasets, params)
 
     return html.Div(children=dropdowns(initialised_datasets, params))
